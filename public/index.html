@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyboard Scale Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-dark: #0f0f0f;
+            --container-bg: #1a1a1a;
+            --white-key: #e0e0e0;
+            --black-key: #222222;
+            --accent-red: #ff3b3b;
+            --accent-green: #00ff00;
+            --accent-green-dark: #008f00;
+            --accent-green-bright: #39ff14;
+            --border-color: #333333;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #ffffff;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .mpc-container {
+            background-color: var(--container-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            width: 95%;
+            max-width: 900px;
+            height: 96vh;
+            max-height: 1100px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .status-area {
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .label-small {
+            font-size: 10px;
+            color: #666;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .status-text {
+            color: var(--accent-red);
+            font-weight: bold;
+            font-style: italic;
+            font-size: 14px;
+        }
+
+        .bpm-display {
+            text-align: right;
+        }
+
+        .bpm-value {
+            color: var(--accent-green);
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .view-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Keyboard Styles */
+        .keyboard-container {
+            flex-grow: 1;
+            display: flex;
+            position: relative;
+            background: #111;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        .key {
+            position: absolute;
+            top: 0;
+            border-radius: 0 0 4px 4px;
+            cursor: pointer;
+            transition: all 0.1s;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 8px;
+            user-select: none;
+            font-size: 10px;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .key.white {
+            height: 100%;
+            background: var(--white-key);
+            color: #333;
+            border: 1px solid #000;
+            border-top: none;
+            z-index: 1;
+        }
+        
+        .key.white:active, .key.white.playing {
+            background: #bbb;
+            transform: scale(0.98);
+            transform-origin: top;
+        }
+
+        .key.black {
+            height: 60%;
+            background: var(--black-key);
+            color: #888;
+            border: 1px solid #000;
+            border-top: none;
+            z-index: 2;
+            border-radius: 0 0 3px 3px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .key.black:active, .key.black.playing {
+            background: #444;
+            transform: scale(0.98);
+            transform-origin: top;
+        }
+
+        /* Scale Highlighting - Filled Green Style */
+        .key.white.scale-active {
+            background: var(--accent-green); /* 明るい緑 */
+            color: #000; /* 黒文字で見やすく */
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+            border-color: #00cc00;
+        }
+        
+        .key.black.scale-active {
+            background: var(--accent-green-dark); /* 濃い緑 */
+            color: #fff; /* 白文字 */
+            box-shadow: 0 0 10px rgba(0, 143, 0, 0.6);
+            border-color: #005500;
+            z-index: 3; /* スケール内の黒鍵を白鍵の上に確実に表示 */
+        }
+
+        /* Playing Animation (Red overrides Green) */
+        .key.playing {
+            background: var(--accent-red) !important;
+            color: white !important;
+            box-shadow: 0 0 20px var(--accent-red);
+            border-color: #990000 !important;
+            z-index: 10 !important; /* 最前面に */
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .ai-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .ai-btn {
+            flex: 1;
+            background: linear-gradient(135deg, #4f46e5, #9333ea);
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .ai-btn:hover { opacity: 0.9; }
+        .ai-btn:disabled { background: #333; cursor: not-allowed; }
+
+        select, input[type="number"], input[type="text"] {
+            background-color: #111;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+            outline: none;
+        }
+
+        .input-with-label {
+            display: flex;
+            align-items: center;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 0 12px;
+        }
+
+        .input-label {
+            font-size: 10px;
+            color: #666;
+            margin-right: 8px;
+        }
+
+        input[type="range"] {
+            accent-color: var(--accent-red);
+            flex-grow: 1;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            background-color: #333;
+            color: #fff;
+            padding: 14px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:hover { background-color: #444; }
+
+        #sound-toggle.active-green {
+            background-color: var(--accent-green-bright) !important;
+            color: #000000 !important;
+            border-color: #ffffff !important;
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.7) !important;
+            font-weight: 800 !important;
+        }
+
+        #rec-btn.active-rec {
+            background-color: var(--accent-red) !important;
+            color: #fff !important;
+            border-color: #fff !important;
+            box-shadow: 0 0 15px rgba(255, 59, 59, 0.7) !important;
+            animation: pulse 1s infinite;
+        }
+        
+        .btn-blue { background-color: #2563eb; border-color: #1d4ed8; }
+        .btn-blue:hover { background-color: #1d4ed8; }
+
+        .nav-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-top: 24px;
+            padding: 4px;
+            background-color: #000;
+            border-radius: 8px;
+        }
+
+        .tab {
+            padding: 12px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #666;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .tab.active {
+            background-color: #333;
+            color: #fff;
+        }
+
+        #sequencer-container {
+            flex-grow: 1;
+            background-color: #0a0a0a;
+            border: 1px solid #222;
+            overflow-y: auto;
+            border-radius: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: #333 #0a0a0a;
+        }
+        
+        #sequencer-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        #sequencer-container::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        #sequencer-container::-webkit-scrollbar-thumb {
+            background-color: #333;
+            border-radius: 4px;
+        }
+
+        .seq-row {
+            display: flex;
+            height: 24px; /* Slightly more compact for piano roll */
+            border-bottom: 1px solid #111;
+        }
+
+        .seq-key {
+            width: 60px;
+            background-color: #111;
+            display: flex;
+            justify-content: flex-end;
+            padding-right: 8px;
+            align-items: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #999;
+            border-right: 2px solid #222;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .seq-key.black-key-row {
+            background-color: #080808;
+            color: #666;
+        }
+
+        .seq-key.out-of-scale {
+            color: #333;
+            background-color: #050505;
+        }
+
+        .seq-key.root { color: var(--accent-green); }
+
+        .seq-grid {
+            display: flex;
+            flex-grow: 1;
+        }
+
+        .seq-cell {
+            flex: 1;
+            border-right: 1px solid #1a1a1a;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .seq-cell.active { 
+            background-color: var(--accent-green) !important; 
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.4), 0 0 3px rgba(0, 255, 0, 0.6);
+            z-index: 10;
+        }
+        
+        .seq-cell.current { 
+            background-color: rgba(255, 255, 255, 0.1) !important; 
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+        }
+        
+        .seq-cell.active.current {
+            background-color: #aaffaa !important;
+            box-shadow: 0 0 10px white, inset 0 0 0 2px white;
+        }
+        
+        .seq-cell.measure-alt { background-color: #202020; }
+        .seq-cell:not(.measure-alt) { background-color: #161616; }
+        .seq-cell:hover { opacity: 0.8; background-color: #333; }
+
+        .hidden { display: none !important; }
+
+        #ai-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="mpc-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="status-area">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="label-small">NAVIGATOR</span>
+                    <button id="sound-toggle" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
+                        <span id="sound-icon">🔈</span> SOUND OFF
+                    </button>
+                    <button id="rec-btn" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
+                        <span class="w-2 h-2 rounded-full bg-red-600"></span> REC
+                    </button>
+                </div>
+                <div id="status-label" class="status-text uppercase tracking-widest">STOPPED</div>
+            </div>
+            <div class="bpm-display">
+                <div id="bpm-val" class="bpm-value">120 BPM</div>
+                <div class="label-small">KEYBOARD SEQUENCER</div>
+            </div>
+        </div>
+
+        <!-- Main Content Area: Keyboard -->
+        <div id="view-keyboard" class="view-panel">
+            <div id="keyboard-container" class="keyboard-container">
+                <!-- Keys will be generated by JS -->
+            </div>
+        </div>
+
+        <div id="view-sequencer" class="view-panel hidden">
+            <!-- View Mode Toggle & Clear -->
+            <div class="flex justify-between items-center mb-2">
+                <div class="label-small text-gray-500">PIANO ROLL EDITOR</div>
+                <div class="flex gap-3">
+                    <button id="clear-seq-btn" class="group flex items-center gap-1 text-[9px] px-2 py-1 rounded border border-[#333] hover:border-red-500 transition-all min-w-[70px] justify-center">
+                        <span id="clear-btn-text" class="text-gray-500 group-hover:text-red-400 font-bold uppercase">🗑️ CLEAR</span>
+                    </button>
+
+                    <div class="flex bg-black/40 rounded p-1 gap-1 border border-[#333]">
+                        <button id="seq-mode-scale" class="text-[9px] px-3 py-1 rounded bg-[#333] text-white font-bold transition-colors">SCALE</button>
+                        <button id="seq-mode-chromatic" class="text-[9px] px-3 py-1 rounded text-[#666] font-bold hover:text-[#999] transition-colors">CHROMATIC</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="sequencer-container"></div>
+            
+            <div class="mt-2 flex justify-between items-center">
+                <div class="label-small text-[9px] text-gray-500">PROG モードで REC を押すと再生内容がここに書き込まれます</div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view-panel hidden">
+            <div class="bg-black/40 p-6 rounded-lg">
+                <h3 class="label-small mb-4">Device Config</h3>
+                <div class="control-item">
+                    <label class="label-small">Language / 言語設定</label>
+                    <select id="lang-select">
+                        <option value="ja">日本語 (Japanese)</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Integration Area -->
+        <div class="ai-controls">
+            <button id="ai-scale-btn" class="ai-btn">✨ AIスケール提案</button>
+            <button id="ai-prog-btn" class="ai-btn">✨ AI進行生成</button>
+        </div>
+
+        <!-- Lower Controls -->
+        <div class="controls-area">
+            <div class="controls-grid">
+                <select id="root-note">
+                    <option value="C">Root: C</option>
+                    <option value="C#">Root: C# / Db</option>
+                    <option value="D">Root: D</option>
+                    <option value="D#">Root: D# / Eb</option>
+                    <option value="E">Root: E</option>
+                    <option value="F">Root: F</option>
+                    <option value="F#">Root: F# / Gb</option>
+                    <option value="G">Root: G</option>
+                    <option value="G#">Root: G# / Ab</option>
+                    <option value="A">Root: A</option>
+                    <option value="A#">Root: A# / Bb</option>
+                    <option value="B">Root: B</option>
+                </select>
+                <select id="key-type">
+                    <option value="major">Key: Major</option>
+                    <option value="minor">Key: Minor</option>
+                </select>
+            </div>
+
+            <div class="controls-grid">
+                <div class="input-with-label">
+                    <span class="input-label">BPM</span>
+                    <input type="number" id="bpm-input" value="120" min="40" max="240">
+                </div>
+                <div class="input-with-label">
+                    <span class="input-label">VOL</span>
+                    <input type="range" id="volume-fader" min="0" max="1" step="0.01" value="0.5">
+                </div>
+            </div>
+
+            <div class="controls-grid">
+                <select id="mode-selector">
+                    <option value="scale">Mode: Scale</option>
+                    <option value="progression">Mode: Progression</option>
+                </select>
+                <select id="sub-selector"></select>
+            </div>
+
+            <div class="action-buttons">
+                <div id="play-btn" class="btn">PLAY</div>
+                <div id="stop-btn" class="btn">STOP</div>
+                <div id="export-btn" class="btn btn-blue">EXPORT MIDI</div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs" id="nav-tabs">
+            <div class="tab active" data-view="keyboard">KEYBOARD</div>
+            <div class="tab" data-view="sequencer">PIANO ROLL</div>
+            <div class="tab" data-view="settings">SETTINGS</div>
+        </div>
+    </div>
+
+    <!-- AI Prompt Modal -->
+    <div id="ai-modal" class="hidden">
+        <div class="bg-[#1a1a1a] p-8 rounded-xl border border-[#333] w-96 max-w-[90%] shadow-2xl">
+            <h2 id="ai-modal-title" class="text-lg font-bold mb-4 text-purple-400">✨ AI生成</h2>
+            <input type="text" id="ai-input" placeholder="例: 切ない、チル、Lo-fi..." class="mb-4">
+            <div class="flex gap-2">
+                <button id="ai-submit" class="ai-btn flex-grow">生成開始</button>
+                <button id="ai-close" class="btn flex-grow">閉じる</button>
+            </div>
+            <p id="ai-status" class="text-[10px] text-gray-500 mt-4 italic text-center min-h-[15px]"></p>
+        </div>
+    </div>
+
+    <script>
+        const keyboardContainer = document.getElementById('keyboard-container');
+        const rootSelect = document.getElementById('root-note');
+        const keyTypeSelect = document.getElementById('key-type');
+        const modeSelect = document.getElementById('mode-selector');
+        const subSelect = document.getElementById('sub-selector');
+        const bpmInput = document.getElementById('bpm-input');
+        const bpmDisplay = document.getElementById('bpm-val');
+        const playBtn = document.getElementById('play-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const soundToggle = document.getElementById('sound-toggle');
+        const recBtn = document.getElementById('rec-btn');
+        const soundIcon = document.getElementById('sound-icon');
+        const volumeFader = document.getElementById('volume-fader');
+        const statusLabel = document.getElementById('status-label');
+        const seqContainer = document.getElementById('sequencer-container');
+        const langSelect = document.getElementById('lang-select');
+        
+        const aiScaleBtn = document.getElementById('ai-scale-btn');
+        const aiProgBtn = document.getElementById('ai-prog-btn');
+        const aiModal = document.getElementById('ai-modal');
+        const aiInput = document.getElementById('ai-input');
+        const aiSubmit = document.getElementById('ai-submit');
+        const aiClose = document.getElementById('ai-close');
+        const aiStatus = document.getElementById('ai-status');
+        const aiModalTitle = document.getElementById('ai-modal-title');
+        
+        // Sequencer view mode controls
+        const btnSeqScale = document.getElementById('seq-mode-scale');
+        const btnSeqChrom = document.getElementById('seq-mode-chromatic');
+        let sequencerViewMode = 'scale'; 
+
+        let currentLang = 'ja';
+
+        // 25 Keys: C3 to C5
+        const chromaticNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const keyNotes = [];
+        const startOctave = 3;
+        const totalKeys = 25; // C3 to C5
+
+        for (let i = 0; i < totalKeys; i++) {
+            const noteIndex = i % 12;
+            const octave = startOctave + Math.floor(i / 12);
+            keyNotes.push({ 
+                name: chromaticNotes[noteIndex], 
+                fullName: chromaticNotes[noteIndex] + octave, 
+                octave,
+                midi: 12 * (octave + 1) + noteIndex,
+                isBlack: chromaticNotes[noteIndex].includes('#')
+            });
+        }
+
+        const scales = {
+            major: { name: { ja: 'メジャースケール', en: 'Major Scale' }, intervals: [0, 2, 4, 5, 7, 9, 11] },
+            minor: { name: { ja: 'ナチュラルマイナー', en: 'Natural Minor' }, intervals: [0, 2, 3, 5, 7, 8, 10] }
+        };
+
+        const progressions = {
+            major: {
+                oudou: { name: { ja: '王道進行 (IV-V-IIIm-VIm)', en: 'Royal Road (Pop)' }, labels: ['IV', 'V', 'IIIm', 'VIm'], degrees: [[5,9,0], [7,11,2], [4,7,11], [9,0,4]] },
+                komuro: { name: { ja: '小室進行 (VIm-IV-V-I)', en: 'Komuro Style' }, labels: ['VIm', 'IV', 'V', 'I'], degrees: [[9,0,4], [5,9,0], [7,11,2], [0,4,7]] },
+                junkun: { name: { ja: '循環進行 (I-VIm-IIm-V)', en: 'Standard Cycle' }, labels: ['I', 'VIm', 'IIm', 'V'], degrees: [[0,4,7], [9,0,4], [2,5,9], [7,11,2]] },
+                canon: { name: { ja: 'カノン進行', en: 'Canon' }, labels: ['I', 'V', 'VIm', 'IIIm', 'IV', 'I', 'IV', 'V'], degrees: [[0,4,7], [7,11,2], [9,0,4], [4,7,11], [5,9,0], [0,4,7], [5,9,0], [7,11,2]] },
+                pop_rock: { name: { ja: 'ポップロック (I-V-VIm-IV)', en: 'Pop Rock (4-Chords)' }, labels: ['I', 'V', 'VIm', 'IV'], degrees: [[0,4,7], [7,11,2], [9,0,4], [5,9,0]] },
+                heartbeat: { name: { ja: '心の鼓動 (VIm-V-IV-V)', en: 'Heartbeat' }, labels: ['VIm', 'V', 'IV', 'V'], degrees: [[9,0,4], [7,11,2], [5,9,0], [7,11,2]] },
+                jazzy: { name: { ja: 'ジャジー (IIm7-V7-IM7-VIm7)', en: 'Standard 2-5-1-6' }, labels: ['IIm7', 'V7', 'IM7', 'VIm7'], degrees: [[2,5,9,0], [7,11,2,5], [0,4,7,11], [9,0,4,7]] },
+                floating: { name: { ja: '浮遊感 (IVM7-V7-IM7-I7)', en: 'Floating' }, labels: ['IVM7', 'V7', 'IM7', 'I7'], degrees: [[5,9,0,4], [7,11,2,5], [0,4,7,11], [0,4,7,10]] },
+                calm: { name: { ja: '穏やか (I-IIm-V-I)', en: 'Calm' }, labels: ['I', 'IIm', 'V', 'I'], degrees: [[0,4,7], [2,5,9], [7,11,2], [0,4,7]] },
+                ascending: { name: { ja: '上昇進行 (IV-V-VIm-VII°)', en: 'Ascending' }, labels: ['IV', 'V', 'VIm', 'VII°'], degrees: [[5,9,0], [7,11,2], [9,0,4], [11,2,5]] }
+            },
+            minor: {
+                marusa: { name: { ja: '丸サ進行 (bVIM7-V7-Im7-bIII7)', en: 'Just The Two of Us' }, labels: ['bVIM7', 'V7', 'Im7', 'bIII7'], degrees: [[8,0,3,7], [7,11,2,5], [0,3,7,10], [3,7,10,1]] },
+                cliche: { name: { ja: 'マイナー・クリシェ', en: 'Minor Cliche' }, labels: ['Im', 'ImM7', 'Im7', 'Im6'], degrees: [[0,3,7], [0,3,7,11], [0,3,7,10], [0,3,7,9]] },
+                emotional: { name: { ja: 'エモーショナル (Im-bVI-bIII-bVII)', en: 'Emotional Minor' }, labels: ['Im', 'bVI', 'bIII', 'bVII'], degrees: [[0,3,7], [8,0,3], [3,7,10], [10,2,5]] },
+                dark: { name: { ja: '暗い循環 (Im-IVm-V7-Im)', en: 'Dark Cycle' }, labels: ['Im', 'IVm', 'V7', 'Im'], degrees: [[0,3,7], [5,8,0], [7,11,2,5], [0,3,7]] },
+                andes: { name: { ja: 'アンデス進行 (Im-bVII-bVI-V)', en: 'Andes / Spanish' }, labels: ['Im', 'bVII', 'bVI', 'V'], degrees: [[0,3,7], [10,2,5], [8,0,3], [7,11,2]] },
+                chill: { name: { ja: 'チル (Im7-IV7-Im7-IV7)', en: 'Chill' }, labels: ['Im7', 'IV7', 'Im7', 'IV7'], degrees: [[0,3,7,10], [5,9,0,3], [0,3,7,10], [5,9,0,3]] },
+                gothic: { name: { ja: 'ゴシック (Im-VIm7b5-bVI-V)', en: 'Gothic' }, labels: ['Im', 'VIm7b5', 'bVI', 'V'], degrees: [[0,3,7], [9,0,3,7], [8,0,3], [7,11,2]] },
+                sad: { name: { ja: '切ないバラード (IIm7b5-V7-Im)', en: 'Sad Ballad' }, labels: ['IIm7b5', 'V7', 'Im', 'Im'], degrees: [[2,5,8,0], [7,11,2,5], [0,3,7], [0,3,7]] },
+                vampire: { name: { ja: '吸血鬼 (Im-bVI-bVll-Im)', en: 'Vampire' }, labels: ['Im', 'bVI', 'bVII', 'Im'], degrees: [[0,3,7], [8,0,3], [10,2,5], [0,3,7]] },
+                tense: { name: { ja: '緊張感 (Im-bll-Im-bll)', en: 'Tense' }, labels: ['Im', 'bII', 'Im', 'bII'], degrees: [[0,3,7], [1,5,8], [0,3,7], [1,5,8]] }
+            }
+        };
+
+        let audioCtx, masterGain, isPlaying = false, isSoundOn = false, isRecording = false, currentStep = 0, timer, sequencerData = {};
+        let aiMode = 'scale';
+
+        const MidiEncoder = {
+            numToVarLen(num) {
+                let bytes = [];
+                bytes.push(num & 0x7F);
+                while (num >>= 7) bytes.push((num & 0x7F) | 0x80);
+                return bytes.reverse();
+            },
+            strToBytes(str) {
+                return Array.from(str).map(c => c.charCodeAt(0));
+            },
+            getMidiFile(tracks, ticksPerBeat = 128) {
+                let header = [
+                    ...this.strToBytes('MThd'),
+                    0x00, 0x00, 0x00, 0x06,
+                    0x00, 0x01,
+                    (tracks.length >> 8) & 0xFF, tracks.length & 0xFF,
+                    (ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF
+                ];
+                let body = [];
+                tracks.forEach(t => body.push(...this.getTrackChunk(t)));
+                return new Uint8Array([...header, ...body]);
+            },
+            getTrackChunk(events) {
+                let data = [];
+                events.forEach(e => {
+                    data.push(...this.numToVarLen(e.delta));
+                    data.push(...e.bytes);
+                });
+                data.push(0x00, 0xFF, 0x2F, 0x00);
+                let len = data.length;
+                return [
+                    ...this.strToBytes('MTrk'),
+                    (len >> 24) & 0xFF, (len >> 16) & 0xFF, (len >> 8) & 0xFF, len & 0xFF,
+                    ...data
+                ];
+            },
+            createNoteOn(channel, note, velocity) { return [0x90 | channel, note, velocity]; },
+            createNoteOff(channel, note, velocity) { return [0x80 | channel, note, velocity]; },
+            createTempo(bpm) {
+                let microseconds = Math.round(60000000 / bpm);
+                return [0xFF, 0x51, 0x03, (microseconds >> 16) & 0xFF, (microseconds >> 8) & 0xFF, microseconds & 0xFF];
+            }
+        };
+
+        // --- Modified for Canvas Environment ---
+        async function callGemini(prompt, systemPrompt, schema) {
+            
+            const url = `/api/gemini`;
+            
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { 
+                    responseMimeType: "application/json", 
+                    responseSchema: schema,
+                    temperature: 0.7
+                }
+            };
+
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                        return JSON.parse(data.candidates[0].content.parts[0].text);
+                    } else throw new Error("No content");
+                } catch (e) {
+                    if (i === 4) throw e;
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                masterGain = audioCtx.createGain();
+                masterGain.connect(audioCtx.destination);
+                masterGain.gain.value = volumeFader.value;
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(freq, time = 0) {
+            if (!isSoundOn || !audioCtx) return;
+            const now = time || audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+            osc.connect(gain).connect(masterGain);
+            osc.start(now);
+            osc.stop(now + 1.0);
+        }
+
+        function getFreq(note, octave) {
+            const index = chromaticNotes.indexOf(note);
+            return 440 * Math.pow(2, (index - 9 + (octave - 4) * 12) / 12);
+        }
+
+        function updateUI(activeHits = []) {
+            const root = rootSelect.value;
+            const type = keyTypeSelect.value;
+            const currentScale = scales[type] || scales.major;
+            const scaleNotes = currentScale.intervals.map(i => chromaticNotes[(chromaticNotes.indexOf(root) + i) % 12]);
+
+            keyboardContainer.innerHTML = '';
+            
+            // Calculate layout for 25 keys (C3 to C5)
+            // White keys total: 15 (C3, D3, E3, F3, G3, A3, B3, C4, D4, E4, F4, G4, A4, B4, C5)
+            const whiteKeyCount = 15;
+            const whiteKeyWidthPercent = 100 / whiteKeyCount;
+            let whiteKeyIndex = 0;
+
+            keyNotes.forEach((note, i) => {
+                const isScale = scaleNotes.includes(note.name);
+                const isPlayingNote = activeHits.includes(i);
+                
+                const keyDiv = document.createElement('div');
+                keyDiv.className = `key ${note.isBlack ? 'black' : 'white'} ${isScale ? 'scale-active' : ''} ${isPlayingNote ? 'playing' : ''}`;
+                
+                // Positioning
+                if (note.isBlack) {
+                    // Position black key between white keys
+                    // Black key width is usually ~60% of white key
+                    const width = whiteKeyWidthPercent * 0.7; 
+                    keyDiv.style.width = `${width}%`;
+                    keyDiv.style.left = `${(whiteKeyIndex * whiteKeyWidthPercent) - (width / 2)}%`;
+                } else {
+                    keyDiv.style.width = `${whiteKeyWidthPercent}%`;
+                    keyDiv.style.left = `${whiteKeyIndex * whiteKeyWidthPercent}%`;
+                    whiteKeyIndex++;
+                }
+
+                // Inner content
+                if (!note.isBlack || window.innerWidth > 600) {
+                   keyDiv.innerText = note.name;
+                }
+                
+                const triggerKey = () => {
+                    initAudio();
+                    playSound(getFreq(note.name, note.octave));
+                    keyDiv.classList.add('playing');
+                    setTimeout(() => keyDiv.classList.remove('playing'), 100);
+                };
+                
+                keyDiv.onmousedown = triggerKey;
+                keyDiv.ontouchstart = (e) => { e.preventDefault(); triggerKey(); };
+                
+                keyboardContainer.appendChild(keyDiv);
+            });
+        }
+
+        function renderSequencer() {
+            seqContainer.innerHTML = '';
+            const root = rootSelect.value;
+            const currentScale = scales[keyTypeSelect.value] || scales.major;
+            const scaleNotes = currentScale.intervals.map(i => chromaticNotes[(chromaticNotes.indexOf(root) + i) % 12]);
+
+            // Piano roll: High notes at top, Low notes at bottom
+            [...keyNotes].reverse().forEach((note, revIdx) => {
+                const realIdx = (totalKeys - 1) - revIdx;
+                const isInScale = scaleNotes.includes(note.name);
+                if (sequencerViewMode === 'scale' && !isInScale) return;
+
+                const row = document.createElement('div');
+                row.className = 'seq-row';
+                const key = document.createElement('div');
+                key.className = `seq-key ${note.isBlack ? 'black-key-row' : ''} ${note.name === root ? 'root' : ''} ${!isInScale ? 'out-of-scale' : ''}`;
+                key.textContent = note.fullName;
+                row.appendChild(key);
+
+                const grid = document.createElement('div');
+                grid.className = 'seq-grid';
+                grid.dataset.padIndex = realIdx;
+                if (!sequencerData[realIdx]) sequencerData[realIdx] = new Array(16).fill(false);
+
+                for (let s = 0; s < 16; s++) {
+                    const cell = document.createElement('div');
+                    cell.className = `seq-cell ${sequencerData[realIdx][s] ? 'active' : ''} ${Math.floor(s/4)%2===1?'measure-alt':''}`;
+                    cell.dataset.stepIndex = s;
+                    cell.onclick = () => {
+                        sequencerData[realIdx][s] = !sequencerData[realIdx][s];
+                        cell.classList.toggle('active');
+                    };
+                    grid.appendChild(cell);
+                }
+                row.appendChild(grid);
+                seqContainer.appendChild(row);
+            });
+        }
+        
+        function updateSeqModeUI() {
+            if (sequencerViewMode === 'scale') {
+                btnSeqScale.classList.add('bg-[#333]', 'text-white');
+                btnSeqChrom.classList.remove('bg-[#333]', 'text-white');
+            } else {
+                btnSeqChrom.classList.add('bg-[#333]', 'text-white');
+                btnSeqScale.classList.remove('bg-[#333]', 'text-white');
+            }
+        }
+        
+        btnSeqScale.onclick = () => { sequencerViewMode = 'scale'; updateSeqModeUI(); renderSequencer(); };
+        btnSeqChrom.onclick = () => { sequencerViewMode = 'chromatic'; updateSeqModeUI(); renderSequencer(); };
+
+        function runCycle() {
+            if (!isPlaying) return;
+            const bpm = parseInt(bpmInput.value);
+            const stepMs = (60000 / bpm);
+            
+            const cells = seqContainer.querySelectorAll('.seq-cell');
+            cells.forEach(cell => {
+                if (parseInt(cell.dataset.stepIndex) === (currentStep % 16)) cell.classList.add('current');
+                else cell.classList.remove('current');
+            });
+
+            if (modeSelect.value === 'scale') {
+                const stepIdx = currentStep % 16;
+                const hits = [];
+                Object.keys(sequencerData).forEach(idx => {
+                    if (sequencerData[idx][stepIdx]) {
+                        playSound(getFreq(keyNotes[idx].name, keyNotes[idx].octave));
+                        hits.push(parseInt(idx));
+                    }
+                });
+                updateUI(hits);
+                currentStep = (currentStep + 1) % 16;
+            } else {
+                const curKey = keyTypeSelect.value;
+                const curSub = subSelect.value;
+                const prog = (progressions[curKey] && progressions[curKey][curSub]) ? progressions[curKey][curSub] : null;
+
+                if (prog) {
+                    const loopSteps = prog.degrees.length * 4;
+                    const stepIdx = currentStep % loopSteps;
+                    if (stepIdx % 4 === 0) {
+                        const measureIdx = Math.floor(stepIdx / 4);
+                        const progIdx = measureIdx % prog.degrees.length;
+                        const rootIdx = chromaticNotes.indexOf(rootSelect.value);
+                        const chordNames = prog.degrees[progIdx].map(i => chromaticNotes[(rootIdx + i) % 12]);
+                        
+                        const hits = [];
+                        
+                        // 初心者向け：ルートポジションに近い形でボイシング
+                        // 1. まずルート音を C3-B3 の範囲で確保
+                        let currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0] && k.octave === 3);
+                        if (currentRootIndex === -1) currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0]); // fallback
+
+                        // 2. 各構成音をルート音以上で一番近い場所で探す
+                        chordNames.forEach((noteName, idx) => {
+                            // ルート音自身は確定済み
+                            if (idx === 0) {
+                                hits.push(currentRootIndex);
+                                return;
+                            }
+
+                            // ルート音以降の音：ルート音の位置から探索開始
+                            let foundIndex = -1;
+                            for (let i = currentRootIndex + 1; i < keyNotes.length; i++) {
+                                if (keyNotes[i].name === noteName) {
+                                    foundIndex = i;
+                                    break;
+                                }
+                            }
+
+                            // もし見つからない（鍵盤の右端を超えた）場合、あるいは高すぎる場合は
+                            // ルート音より下（転回形）でも良いので、C3から再探索して一番低い位置を採用する
+                            // （またはループさせる）
+                            if (foundIndex === -1) {
+                                // 範囲外なら一番低いオクターブで探す（転回形になるが弾けないよりマシ）
+                                foundIndex = keyNotes.findIndex(k => k.name === noteName);
+                            }
+                            
+                            if (foundIndex !== -1 && !hits.includes(foundIndex)) {
+                                hits.push(foundIndex);
+                            }
+                        });
+
+                        // 再生
+                        hits.forEach(idx => {
+                            playSound(getFreq(keyNotes[idx].name, keyNotes[idx].octave));
+                        });
+                        
+                        statusLabel.textContent = `CHORD: ${prog.labels[progIdx]}`;
+                        updateUI(hits);
+                        
+                        if (isRecording) {
+                            const startStep = stepIdx % 16;
+                            hits.forEach(keyIdx => {
+                                if (!sequencerData[keyIdx]) sequencerData[keyIdx] = new Array(16).fill(false);
+                                sequencerData[keyIdx][startStep] = true;
+                            });
+                            if (!document.getElementById('view-sequencer').classList.contains('hidden')) renderSequencer();
+                        }
+                    }
+                    currentStep++;
+                } else currentStep = (currentStep + 1) % 16;
+            }
+            timer = setTimeout(runCycle, stepMs);
+        }
+
+        function exportMIDI() {
+            const ticksPerBeat = 128;
+            const bpm = parseInt(bpmInput.value);
+            let trackEvents = [
+                { delta: 0, bytes: MidiEncoder.createTempo(bpm) },
+                { delta: 0, bytes: [0xFF, 0x03, 0x09, ...MidiEncoder.strToBytes('Sequencer')] }
+            ];
+            let absoluteEvents = [];
+            for (let s = 0; s < 16; s++) {
+                const startTime = s * ticksPerBeat;
+                const endTime = startTime + Math.floor(ticksPerBeat * 0.8);
+                Object.keys(sequencerData).forEach(idx => {
+                    if (sequencerData[idx][s]) {
+                        const note = keyNotes[idx].midi;
+                        absoluteEvents.push({ time: startTime, bytes: MidiEncoder.createNoteOn(0, note, 90) });
+                        absoluteEvents.push({ time: endTime, bytes: MidiEncoder.createNoteOff(0, note, 0) });
+                    }
+                });
+            }
+            absoluteEvents.sort((a, b) => a.time - b.time);
+            let lastTime = 0;
+            absoluteEvents.forEach(e => {
+                trackEvents.push({ delta: e.time - lastTime, bytes: e.bytes });
+                lastTime = e.time;
+            });
+            const midiData = MidiEncoder.getMidiFile([trackEvents], ticksPerBeat);
+            const blob = new Blob([midiData], { type: 'audio/midi' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `keyboard_scale_finder_${Date.now()}.mid`; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function handleAI() {
+            const prompt = aiInput.value;
+            aiStatus.textContent = "Generating...";
+            aiSubmit.disabled = true;
+            try {
+                if (aiMode === 'scale') {
+                    const schema = {
+                        type: "OBJECT",
+                        properties: { keyName: { type: "STRING" }, intervals: { type: "ARRAY", items: { type: "NUMBER" } } },
+                        required: ["keyName", "intervals"]
+                    };
+                    const result = await callGemini(`Suggest a scale: ${prompt}. Root ${rootSelect.value}.`, "Return keyName and 7 intervals.", schema);
+                    const id = `ai_scale_${Date.now()}`;
+                    scales[id] = { name: { ja: result.keyName, en: result.keyName }, intervals: result.intervals };
+                    const opt = document.createElement('option'); opt.value = id; opt.textContent = `✨ AI: ${result.keyName}`;
+                    keyTypeSelect.prepend(opt); keyTypeSelect.value = id;
+                } else {
+                    const schema = {
+                        type: "OBJECT",
+                        properties: { name: { type: "STRING" }, labels: { type: "ARRAY", items: { type: "STRING" } }, degrees: { type: "ARRAY", items: { type: "ARRAY", items: { type: "NUMBER" } } } },
+                        required: ["name", "labels", "degrees"]
+                    };
+                    const result = await callGemini(`Create 4-chord progression for ${prompt}. Root ${rootSelect.value}.`, "Return name, 4 labels, and 4 sets of degree intervals.", schema);
+                    const id = `ai_prog_${Date.now()}`;
+                    const k = keyTypeSelect.value; if(!progressions[k]) progressions[k] = {};
+                    progressions[k][id] = { name: { ja: result.name, en: result.name }, labels: result.labels, degrees: result.degrees };
+                    modeSelect.value = 'progression'; updateSubOptions(); subSelect.value = id;
+                }
+                aiModal.classList.add('hidden');
+            } catch (e) { 
+                console.error(e); aiStatus.textContent = "Failed: " + e.message; 
+            } finally { aiSubmit.disabled = false; updateUI(); }
+        }
+
+        aiScaleBtn.onclick = () => { aiMode = 'scale'; aiModalTitle.textContent = "✨ AI Scale Suggestion"; aiModal.classList.remove('hidden'); aiStatus.textContent = ""; };
+        aiProgBtn.onclick = () => { aiMode = 'prog'; aiModalTitle.textContent = "✨ AI Progression Suggestion"; aiModal.classList.remove('hidden'); aiStatus.textContent = ""; };
+        aiClose.onclick = () => aiModal.classList.add('hidden');
+        aiSubmit.onclick = handleAI;
+
+        playBtn.onclick = () => {
+            initAudio();
+            if (isPlaying) { isPlaying = false; playBtn.textContent = 'RESUME'; statusLabel.textContent = 'PAUSED'; clearTimeout(timer); } 
+            else { isPlaying = true; playBtn.textContent = 'PAUSE'; statusLabel.textContent = 'RUNNING'; runCycle(); }
+        };
+
+        stopBtn.onclick = () => {
+            isPlaying = false; currentStep = 0; playBtn.textContent = 'PLAY'; statusLabel.textContent = 'STOPPED'; clearTimeout(timer);
+            const cells = seqContainer.querySelectorAll('.seq-cell');
+            cells.forEach(cell => cell.classList.remove('current'));
+            updateUI();
+        };
+
+        soundToggle.onclick = () => {
+            initAudio(); isSoundOn = !isSoundOn;
+            if (isSoundOn) { soundToggle.classList.add('active-green'); soundToggle.innerHTML = `🔊 SOUND ON`; } 
+            else { soundToggle.classList.remove('active-green'); soundToggle.innerHTML = `🔈 SOUND OFF`; }
+        };
+
+        recBtn.onclick = () => {
+            isRecording = !isRecording;
+            if (isRecording) recBtn.classList.add('active-rec');
+            else recBtn.classList.remove('active-rec');
+        };
+
+        exportBtn.onclick = exportMIDI;
+        volumeFader.oninput = () => { if(masterGain) masterGain.gain.value = volumeFader.value; };
+        bpmInput.oninput = () => bpmDisplay.textContent = `${bpmInput.value} BPM`;
+        modeSelect.onchange = updateSubOptions;
+        keyTypeSelect.onchange = updateSubOptions;
+        rootSelect.onchange = () => { currentStep = 0; updateUI(); renderSequencer(); };
+        langSelect.onchange = (e) => { currentLang = e.target.value; updateSubOptions(); };
+
+        function updateSubOptions() {
+            const mode = modeSelect.value;
+            const key = keyTypeSelect.value;
+            subSelect.innerHTML = '';
+            if (mode === 'scale') {
+                const opt = document.createElement('option');
+                const s = scales[key] || scales.major;
+                opt.textContent = s.name[currentLang] || s.name;
+                subSelect.appendChild(opt);
+            } else {
+                const progs = progressions[key] || progressions.major;
+                Object.keys(progs).forEach(k => {
+                    const opt = document.createElement('option'); opt.value = k;
+                    opt.textContent = progs[k].name[currentLang] || progs[k].name;
+                    subSelect.appendChild(opt);
+                });
+            }
+            updateUI();
+            if(!document.getElementById('view-sequencer').classList.contains('hidden')) renderSequencer();
+        }
+
+        document.querySelectorAll('.tab').forEach(t => {
+            t.onclick = () => {
+                document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                document.querySelectorAll('.view-panel').forEach(v => v.classList.add('hidden'));
+                document.getElementById(`view-${t.dataset.view}`).classList.remove('hidden');
+                if (t.dataset.view === 'sequencer') renderSequencer();
+            };
+        });
+
+        // --- FIXED CLEAR LOGIC (Using Inline Confirmation State) ---
+        let clearConfirmState = false;
+        let clearTimer = null;
+        const clearBtn = document.getElementById('clear-seq-btn');
+        const clearBtnText = document.getElementById('clear-btn-text');
+
+        clearBtn.onclick = () => {
+            const hasData = Object.keys(sequencerData).some(k => sequencerData[k].some(s => s));
+            
+            if (!hasData) {
+                clearBtnText.innerText = "❌ NO DATA";
+                setTimeout(() => { clearBtnText.innerText = "🗑️ CLEAR"; }, 1500);
+                return;
+            }
+
+            if (!clearConfirmState) {
+                // First click: Request confirmation
+                clearConfirmState = true;
+                clearBtnText.innerText = "⚠️ ARE YOU SURE?";
+                clearBtnText.classList.add('text-red-400');
+                
+                // Reset if not clicked again within 3 seconds
+                if (clearTimer) clearTimeout(clearTimer);
+                clearTimer = setTimeout(() => {
+                    clearConfirmState = false;
+                    clearBtnText.innerText = "🗑️ CLEAR";
+                    clearBtnText.classList.remove('text-red-400');
+                }, 3000);
+            } else {
+                // Second click: Perform clear
+                sequencerData = {};
+                renderSequencer();
+                
+                clearConfirmState = false;
+                if (clearTimer) clearTimeout(clearTimer);
+                clearBtnText.innerText = "✨ CLEARED!";
+                clearBtnText.classList.remove('text-red-400');
+                clearBtnText.classList.add('text-green-400');
+                
+                setTimeout(() => {
+                    clearBtnText.innerText = "🗑️ CLEAR";
+                    clearBtnText.classList.remove('text-green-400');
+                }, 1500);
+            }
+        };
+        
+        updateSubOptions();
+    </script>
+</body>
+</html>
