@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Keyboard Scale Finder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -18,6 +18,7 @@
             --border-color: #333333;
         }
 
+        /* Prevent pull-to-refresh on mobile */
         body {
             background-color: var(--bg-dark);
             color: #ffffff;
@@ -26,29 +27,72 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            min-height: 100dvh;
             margin: 0;
             overflow: hidden;
+            overscroll-behavior: none;
         }
 
         .mpc-container {
             background-color: var(--container-bg);
             border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
-            width: 95%;
-            max-width: 900px;
-            height: 96vh;
-            max-height: 1100px;
             display: flex;
             flex-direction: column;
+            width: 95%;
+            max-width: 1000px;
+            height: 96vh;
+            height: 96dvh;
+            max-height: 1100px;
+            
+            /* Desktop Default */
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 640px) {
+            .mpc-container {
+                width: 100%;
+                height: 100vh;
+                height: 100dvh;
+                border-radius: 0;
+                border: none;
+                padding: 12px;
+            }
+            
+            .header {
+                margin-bottom: 12px !important;
+            }
+            
+            .controls-grid {
+                gap: 8px !important;
+            }
+            
+            .btn, select, input {
+                padding: 10px !important;
+                font-size: 12px !important;
+            }
+            
+            .bpm-value {
+                font-size: 20px !important;
+            }
+
+            .label-small {
+                font-size: 9px !important;
+            }
+            
+            .status-text {
+                font-size: 11px !important;
+            }
         }
 
         .header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+            flex-shrink: 0;
         }
 
         .status-area {
@@ -58,7 +102,7 @@
         .label-small {
             font-size: 10px;
             color: #666;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             text-transform: uppercase;
         }
 
@@ -67,10 +111,15 @@
             font-weight: bold;
             font-style: italic;
             font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
         }
 
         .bpm-display {
             text-align: right;
+            flex-shrink: 0;
         }
 
         .bpm-value {
@@ -86,6 +135,7 @@
             flex-direction: column;
             overflow: hidden;
             position: relative;
+            min-height: 0; /* Important for flex child scrolling */
         }
 
         /* Keyboard Styles */
@@ -96,8 +146,9 @@
             background: #111;
             border-radius: 8px;
             overflow: hidden;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            touch-action: none; /* Prevent scroll on keyboard */
         }
 
         .key {
@@ -105,7 +156,7 @@
             top: 0;
             border-radius: 0 0 4px 4px;
             cursor: pointer;
-            transition: all 0.1s;
+            transition: background 0.05s, transform 0.05s;
             display: flex;
             align-items: flex-end;
             justify-content: center;
@@ -114,6 +165,7 @@
             font-size: 10px;
             font-weight: bold;
             z-index: 1;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .key.white {
@@ -148,29 +200,35 @@
             transform-origin: top;
         }
 
-        /* Scale Highlighting - Filled Green Style */
+        /* Scale Highlighting */
         .key.white.scale-active {
-            background: var(--accent-green); /* 明るい緑 */
-            color: #000; /* 黒文字で見やすく */
+            background: var(--accent-green);
+            color: #000;
             box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
             border-color: #00cc00;
         }
         
         .key.black.scale-active {
-            background: var(--accent-green-dark); /* 濃い緑 */
-            color: #fff; /* 白文字 */
+            background: var(--accent-green-dark);
+            color: #fff;
             box-shadow: 0 0 10px rgba(0, 143, 0, 0.6);
             border-color: #005500;
-            z-index: 3; /* スケール内の黒鍵を白鍵の上に確実に表示 */
+            z-index: 3;
         }
 
-        /* Playing Animation (Red overrides Green) */
         .key.playing {
             background: var(--accent-red) !important;
             color: white !important;
             box-shadow: 0 0 20px var(--accent-red);
             border-color: #990000 !important;
-            z-index: 10 !important; /* 最前面に */
+            z-index: 10 !important;
+        }
+
+        /* Controls Area */
+        .controls-area {
+            flex-shrink: 0;
+            overflow-y: auto;
+            max-height: 40vh; /* Ensure controls don't eat entire screen on landscape mobile */
         }
 
         .controls-grid {
@@ -179,10 +237,22 @@
             gap: 12px;
             margin-bottom: 12px;
         }
+        
+        /* Mobile specific grid adjustment */
+        @media (max-width: 480px) {
+            .controls-grid {
+                grid-template-columns: 1fr; /* Stack on very small screens */
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+            .controls-grid.side-by-side {
+                grid-template-columns: 1fr 1fr; /* Keep BPM/Vol side by side */
+            }
+        }
 
         .ai-controls {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             margin-bottom: 12px;
         }
 
@@ -200,7 +270,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 4px;
+            white-space: nowrap;
         }
 
         .ai-btn:hover { opacity: 0.9; }
@@ -212,9 +283,10 @@
             border: 1px solid #333;
             padding: 12px;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
             width: 100%;
             outline: none;
+            -webkit-appearance: none; /* Mobile Safari fix */
         }
 
         .input-with-label {
@@ -224,30 +296,40 @@
             border: 1px solid #333;
             border-radius: 4px;
             padding: 0 12px;
+            height: 42px; /* Fixed height for alignment */
         }
 
         .input-label {
             font-size: 10px;
             color: #666;
             margin-right: 8px;
+            flex-shrink: 0;
         }
 
         input[type="range"] {
             accent-color: var(--accent-red);
             flex-grow: 1;
+            min-width: 0; /* Prevent flex overflow */
+        }
+        
+        input[type="number"] {
+             border: none;
+             padding: 0;
+             height: 100%;
+             text-align: right;
         }
 
         .action-buttons {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-            margin-top: 12px;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         .btn {
             background-color: #333;
             color: #fff;
-            padding: 14px;
+            padding: 12px;
             border-radius: 4px;
             text-align: center;
             font-weight: bold;
@@ -259,9 +341,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .btn:hover { background-color: #444; }
+        .btn:active { background-color: #555; transform: translateY(1px); }
 
         #sound-toggle.active-green {
             background-color: var(--accent-green-bright) !important;
@@ -286,10 +371,11 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 4px;
-            margin-top: 24px;
+            margin-top: 12px;
             padding: 4px;
             background-color: #000;
             border-radius: 8px;
+            flex-shrink: 0;
         }
 
         .tab {
@@ -301,6 +387,7 @@
             color: #666;
             cursor: pointer;
             border-radius: 4px;
+            white-space: nowrap;
         }
 
         .tab.active {
@@ -312,14 +399,15 @@
             flex-grow: 1;
             background-color: #0a0a0a;
             border: 1px solid #222;
-            overflow-y: auto;
+            overflow: auto; /* Allow scrolling in both directions if needed */
             border-radius: 4px;
             scrollbar-width: thin;
             scrollbar-color: #333 #0a0a0a;
+            min-height: 0;
         }
         
         #sequencer-container::-webkit-scrollbar {
-            width: 8px;
+            width: 8px; height: 8px;
         }
         #sequencer-container::-webkit-scrollbar-track {
             background: #0a0a0a;
@@ -331,23 +419,27 @@
 
         .seq-row {
             display: flex;
-            height: 24px; /* Slightly more compact for piano roll */
+            height: 24px;
             border-bottom: 1px solid #111;
+            min-width: 100%; /* Ensure row takes full width */
+            width: max-content; /* Allow row to expand horizontally */
         }
 
         .seq-key {
-            width: 60px;
+            width: 50px;
             background-color: #111;
             display: flex;
             justify-content: flex-end;
-            padding-right: 8px;
+            padding-right: 4px;
             align-items: center;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: bold;
             color: #999;
             border-right: 2px solid #222;
             flex-shrink: 0;
-            position: relative;
+            position: sticky; /* Sticky keys on scroll */
+            left: 0;
+            z-index: 20;
         }
         
         .seq-key.black-key-row {
@@ -368,10 +460,22 @@
         }
 
         .seq-cell {
-            flex: 1;
+            width: 24px; /* Fixed width for cells to ensure touchability */
+            min-width: 24px;
             border-right: 1px solid #1a1a1a;
             cursor: pointer;
             position: relative;
+        }
+
+        /* Make cells wider on desktop */
+        @media (min-width: 768px) {
+            .seq-cell {
+                width: auto;
+                flex: 1;
+            }
+            .seq-row {
+                width: 100%;
+            }
         }
 
         .seq-cell.active { 
@@ -392,7 +496,6 @@
         
         .seq-cell.measure-alt { background-color: #202020; }
         .seq-cell:not(.measure-alt) { background-color: #161616; }
-        .seq-cell:hover { opacity: 0.8; background-color: #333; }
 
         .hidden { display: none !important; }
 
@@ -404,6 +507,15 @@
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            padding: 20px;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            background-color: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #333;
         }
     </style>
 </head>
@@ -413,20 +525,20 @@
         <!-- Header -->
         <div class="header">
             <div class="status-area">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="label-small">NAVIGATOR</span>
+                <div class="flex items-center flex-wrap gap-2 mb-1">
+                    <span class="label-small hidden sm:inline">NAVIGATOR</span>
                     <button id="sound-toggle" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
-                        <span id="sound-icon">🔈</span> SOUND OFF
+                        <span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF
                     </button>
                     <button id="rec-btn" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
                         <span class="w-2 h-2 rounded-full bg-red-600"></span> REC
                     </button>
                 </div>
-                <div id="status-label" class="status-text uppercase tracking-widest">STOPPED</div>
+                <div id="status-label" class="status-text uppercase tracking-widest mt-1">STOPPED</div>
             </div>
             <div class="bpm-display">
                 <div id="bpm-val" class="bpm-value">120 BPM</div>
-                <div class="label-small">KEYBOARD SEQUENCER</div>
+                <div class="label-small text-right">SEQUENCER</div>
             </div>
         </div>
 
@@ -439,48 +551,52 @@
 
         <div id="view-sequencer" class="view-panel hidden">
             <!-- View Mode Toggle & Clear -->
-            <div class="flex justify-between items-center mb-2">
-                <div class="label-small text-gray-500">PIANO ROLL EDITOR</div>
-                <div class="flex gap-3">
-                    <button id="clear-seq-btn" class="group flex items-center gap-1 text-[9px] px-2 py-1 rounded border border-[#333] hover:border-red-500 transition-all min-w-[70px] justify-center">
-                        <span id="clear-btn-text" class="text-gray-500 group-hover:text-red-400 font-bold uppercase">🗑️ CLEAR</span>
-                    </button>
-
+            <div class="flex justify-between items-center mb-2 flex-shrink-0">
+                <div class="label-small text-gray-500 hidden sm:block">PIANO ROLL</div>
+                <div class="flex gap-2 w-full sm:w-auto justify-between sm:justify-end">
                     <div class="flex bg-black/40 rounded p-1 gap-1 border border-[#333]">
                         <button id="seq-mode-scale" class="text-[9px] px-3 py-1 rounded bg-[#333] text-white font-bold transition-colors">SCALE</button>
-                        <button id="seq-mode-chromatic" class="text-[9px] px-3 py-1 rounded text-[#666] font-bold hover:text-[#999] transition-colors">CHROMATIC</button>
+                        <button id="seq-mode-chromatic" class="text-[9px] px-3 py-1 rounded text-[#666] font-bold hover:text-[#999] transition-colors">ALL</button>
                     </div>
+                    
+                    <button id="clear-seq-btn" class="group flex items-center gap-1 text-[9px] px-2 py-1 rounded border border-[#333] hover:border-red-500 transition-all min-w-[60px] justify-center">
+                        <span id="clear-btn-text" class="text-gray-500 group-hover:text-red-400 font-bold uppercase">🗑️ CLR</span>
+                    </button>
                 </div>
             </div>
             
             <div id="sequencer-container"></div>
             
-            <div class="mt-2 flex justify-between items-center">
-                <div class="label-small text-[9px] text-gray-500">PROG モードで REC を押すと再生内容がここに書き込まれます</div>
+            <div class="mt-2 flex justify-between items-center flex-shrink-0">
+                <div class="label-small text-[9px] text-gray-500 truncate">PROGモード + RECで進行書き込み</div>
             </div>
         </div>
 
         <div id="view-settings" class="view-panel hidden">
-            <div class="bg-black/40 p-6 rounded-lg">
-                <h3 class="label-small mb-4">Device Config</h3>
-                <div class="control-item">
-                    <label class="label-small">Language / 言語設定</label>
+            <div class="settings-panel">
+                <h3 class="label-small mb-4 text-white">Device Config</h3>
+                <div class="mb-4">
+                    <label class="label-small block mb-2">Language / 言語設定</label>
                     <select id="lang-select">
                         <option value="ja">日本語 (Japanese)</option>
                         <option value="en">English</option>
                     </select>
                 </div>
+                <div class="text-[10px] text-gray-500 leading-relaxed">
+                    <p>Version: 1.1.0 (Mobile Optimized)</p>
+                    <p>Tap "Save to Home Screen" to use as an app.</p>
+                </div>
             </div>
-        </div>
-
-        <!-- AI Integration Area -->
-        <div class="ai-controls">
-            <button id="ai-scale-btn" class="ai-btn">✨ AIスケール提案</button>
-            <button id="ai-prog-btn" class="ai-btn">✨ AI進行生成</button>
         </div>
 
         <!-- Lower Controls -->
         <div class="controls-area">
+            <!-- AI Integration Area -->
+            <div class="ai-controls">
+                <button id="ai-scale-btn" class="ai-btn">✨ AIスケール</button>
+                <button id="ai-prog-btn" class="ai-btn">✨ AIコード進行</button>
+            </div>
+
             <div class="controls-grid">
                 <select id="root-note">
                     <option value="C">Root: C</option>
@@ -502,7 +618,7 @@
                 </select>
             </div>
 
-            <div class="controls-grid">
+            <div class="controls-grid side-by-side">
                 <div class="input-with-label">
                     <span class="input-label">BPM</span>
                     <input type="number" id="bpm-input" value="120" min="40" max="240">
@@ -524,7 +640,7 @@
             <div class="action-buttons">
                 <div id="play-btn" class="btn">PLAY</div>
                 <div id="stop-btn" class="btn">STOP</div>
-                <div id="export-btn" class="btn btn-blue">EXPORT MIDI</div>
+                <div id="export-btn" class="btn btn-blue">MIDI</div>
             </div>
         </div>
 
@@ -538,12 +654,12 @@
 
     <!-- AI Prompt Modal -->
     <div id="ai-modal" class="hidden">
-        <div class="bg-[#1a1a1a] p-8 rounded-xl border border-[#333] w-96 max-w-[90%] shadow-2xl">
+        <div class="bg-[#1a1a1a] p-6 rounded-xl border border-[#333] w-96 max-w-full shadow-2xl">
             <h2 id="ai-modal-title" class="text-lg font-bold mb-4 text-purple-400">✨ AI生成</h2>
-            <input type="text" id="ai-input" placeholder="例: 切ない、チル、Lo-fi..." class="mb-4">
+            <input type="text" id="ai-input" placeholder="例: 切ない、チル、Lo-fi..." class="mb-4 text-base p-3">
             <div class="flex gap-2">
-                <button id="ai-submit" class="ai-btn flex-grow">生成開始</button>
-                <button id="ai-close" class="btn flex-grow">閉じる</button>
+                <button id="ai-submit" class="ai-btn flex-grow py-3">生成</button>
+                <button id="ai-close" class="btn flex-grow py-3">閉じる</button>
             </div>
             <p id="ai-status" class="text-[10px] text-gray-500 mt-4 italic text-center min-h-[15px]"></p>
         </div>
@@ -681,7 +797,6 @@
             }
         };
 
-        // --- Modified for Canvas Environment ---
         async function callGemini(prompt, systemPrompt, schema) {
             
             const url = `/api/gemini`;
@@ -768,7 +883,6 @@
                 // Positioning
                 if (note.isBlack) {
                     // Position black key between white keys
-                    // Black key width is usually ~60% of white key
                     const width = whiteKeyWidthPercent * 0.7; 
                     keyDiv.style.width = `${width}%`;
                     keyDiv.style.left = `${(whiteKeyIndex * whiteKeyWidthPercent) - (width / 2)}%`;
@@ -778,9 +892,15 @@
                     whiteKeyIndex++;
                 }
 
-                // Inner content
-                if (!note.isBlack || window.innerWidth > 600) {
-                   keyDiv.innerText = note.name;
+                // Inner content - Show text only on wider screens or for root notes
+                if ((!note.isBlack || window.innerWidth > 600) && window.innerWidth > 350) {
+                    // Shorten sharp/flat names on small screens
+                    const displayName = note.name.replace('#', '♯');
+                    if (window.innerWidth < 480) {
+                        keyDiv.innerHTML = `<span style="font-size: 8px;">${displayName}</span>`;
+                    } else {
+                        keyDiv.innerText = displayName;
+                    }
                 }
                 
                 const triggerKey = () => {
@@ -791,7 +911,11 @@
                 };
                 
                 keyDiv.onmousedown = triggerKey;
-                keyDiv.ontouchstart = (e) => { e.preventDefault(); triggerKey(); };
+                keyDiv.ontouchstart = (e) => { 
+                    e.preventDefault(); 
+                    e.stopPropagation();
+                    triggerKey(); 
+                };
                 
                 keyboardContainer.appendChild(keyDiv);
             });
@@ -813,7 +937,7 @@
                 row.className = 'seq-row';
                 const key = document.createElement('div');
                 key.className = `seq-key ${note.isBlack ? 'black-key-row' : ''} ${note.name === root ? 'root' : ''} ${!isInScale ? 'out-of-scale' : ''}`;
-                key.textContent = note.fullName;
+                key.textContent = note.fullName.replace('#', '♯');
                 row.appendChild(key);
 
                 const grid = document.createElement('div');
@@ -888,19 +1012,14 @@
                         const hits = [];
                         
                         // 初心者向け：ルートポジションに近い形でボイシング
-                        // 1. まずルート音を C3-B3 の範囲で確保
                         let currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0] && k.octave === 3);
                         if (currentRootIndex === -1) currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0]); // fallback
 
-                        // 2. 各構成音をルート音以上で一番近い場所で探す
                         chordNames.forEach((noteName, idx) => {
-                            // ルート音自身は確定済み
                             if (idx === 0) {
                                 hits.push(currentRootIndex);
                                 return;
                             }
-
-                            // ルート音以降の音：ルート音の位置から探索開始
                             let foundIndex = -1;
                             for (let i = currentRootIndex + 1; i < keyNotes.length; i++) {
                                 if (keyNotes[i].name === noteName) {
@@ -908,12 +1027,7 @@
                                     break;
                                 }
                             }
-
-                            // もし見つからない（鍵盤の右端を超えた）場合、あるいは高すぎる場合は
-                            // ルート音より下（転回形）でも良いので、C3から再探索して一番低い位置を採用する
-                            // （またはループさせる）
                             if (foundIndex === -1) {
-                                // 範囲外なら一番低いオクターブで探す（転回形になるが弾けないよりマシ）
                                 foundIndex = keyNotes.findIndex(k => k.name === noteName);
                             }
                             
@@ -922,7 +1036,6 @@
                             }
                         });
 
-                        // 再生
                         hits.forEach(idx => {
                             playSound(getFreq(keyNotes[idx].name, keyNotes[idx].octave));
                         });
@@ -1032,8 +1145,8 @@
 
         soundToggle.onclick = () => {
             initAudio(); isSoundOn = !isSoundOn;
-            if (isSoundOn) { soundToggle.classList.add('active-green'); soundToggle.innerHTML = `🔊 SOUND ON`; } 
-            else { soundToggle.classList.remove('active-green'); soundToggle.innerHTML = `🔈 SOUND OFF`; }
+            if (isSoundOn) { soundToggle.classList.add('active-green'); soundToggle.innerHTML = `<span id="sound-icon">🔊</span> <span class="hidden xs:inline">SOUND</span> ON`; } 
+            else { soundToggle.classList.remove('active-green'); soundToggle.innerHTML = `<span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF`; }
         };
 
         recBtn.onclick = () => {
@@ -1081,7 +1194,7 @@
             };
         });
 
-        // --- FIXED CLEAR LOGIC (Using Inline Confirmation State) ---
+        // Clear logic
         let clearConfirmState = false;
         let clearTimer = null;
         const clearBtn = document.getElementById('clear-seq-btn');
@@ -1092,40 +1205,42 @@
             
             if (!hasData) {
                 clearBtnText.innerText = "❌ NO DATA";
-                setTimeout(() => { clearBtnText.innerText = "🗑️ CLEAR"; }, 1500);
+                setTimeout(() => { clearBtnText.innerText = "🗑️ CLR"; }, 1500);
                 return;
             }
 
             if (!clearConfirmState) {
-                // First click: Request confirmation
                 clearConfirmState = true;
-                clearBtnText.innerText = "⚠️ ARE YOU SURE?";
+                clearBtnText.innerText = "⚠️ SURE?";
                 clearBtnText.classList.add('text-red-400');
                 
-                // Reset if not clicked again within 3 seconds
                 if (clearTimer) clearTimeout(clearTimer);
                 clearTimer = setTimeout(() => {
                     clearConfirmState = false;
-                    clearBtnText.innerText = "🗑️ CLEAR";
+                    clearBtnText.innerText = "🗑️ CLR";
                     clearBtnText.classList.remove('text-red-400');
                 }, 3000);
             } else {
-                // Second click: Perform clear
                 sequencerData = {};
                 renderSequencer();
                 
                 clearConfirmState = false;
                 if (clearTimer) clearTimeout(clearTimer);
-                clearBtnText.innerText = "✨ CLEARED!";
+                clearBtnText.innerText = "✨ DONE";
                 clearBtnText.classList.remove('text-red-400');
                 clearBtnText.classList.add('text-green-400');
                 
                 setTimeout(() => {
-                    clearBtnText.innerText = "🗑️ CLEAR";
+                    clearBtnText.innerText = "🗑️ CLR";
                     clearBtnText.classList.remove('text-green-400');
                 }, 1500);
             }
         };
+        
+        // Resize listener for responsive UI updates
+        window.addEventListener('resize', () => {
+            updateUI();
+        });
         
         updateSubOptions();
     </script>
