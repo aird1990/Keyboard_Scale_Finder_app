@@ -1,6 +1,6 @@
-// Vercel Serverless Function (CommonJS) - Barebones Minimal Version
+// Vercel Serverless Function (CommonJS) - Ultimate Barebones (Multi-Model Fallback)
 module.exports = async (req, res) => {
-  // 1. CORSヘッダー（必須）
+  // 1. CORSヘッダー
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -8,66 +8,71 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // 2. APIキーの取得
-  const rawKey = process.env.GEMINI_API_KEY || "";
-  const apiKey = rawKey.replace(/['"]/g, '').trim();
-
+  const apiKey = (process.env.GEMINI_API_KEY || "").replace(/['"]/g, '').trim();
   if (!apiKey) return res.status(500).json({ error: 'API Key missing.' });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { contents, systemInstruction } = req.body;
     
-    // 3. 【重要】システム指示を「ユーザーの質問の最初」に力ずくで埋め込む
-    // Googleが「system_instruction」という名前の設定を拒否しているため、この方法しかありません
+    // システム指示を文章の先頭に埋め込む（レガシー互換）
     let textToSend = "";
     if (systemInstruction && systemInstruction.parts && systemInstruction.parts[0]) {
-      textToSend += `【重要指示】\n${systemInstruction.parts[0].text}\n\n`;
+      textToSend += `【指示】\n${systemInstruction.parts[0].text}\n\n`;
     }
     if (contents && contents[0] && contents[0].parts && contents[0].parts[0]) {
-      textToSend += `【ユーザーの依頼】\n${contents[0].parts[0].text}`;
+      textToSend += `【依頼】\n${contents[0].parts[0].text}`;
     }
 
-    // 4. 極限まで削ぎ落とした最小のデータ構造
-    // generationConfigも responseMimeTypeも一切含めません
     const minimalPayload = {
-      contents: [{
-        role: "user",
-        parts: [{ text: textToSend }]
-      }]
+      contents: [{ role: "user", parts: [{ text: textToSend }] }]
     };
 
-    // 5. 接続先を「もっとも汎用的な v1」に固定
-    const modelName = "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+    // 試行するモデルの優先順位
+    // 新しいアカウントで最も早く認識される可能性のある順に並べています
+    const modelsToTry = [
+      "gemini-1.5-flash",
+      "gemini-pro", // 1.0の基本モデル（最も汎用的）
+      "gemini-1.0-pro"
+    ];
 
-    console.log(`[Barebones] Sending minimal request to ${modelName}...`);
+    let lastError = null;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(minimalPayload)
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      console.log("[Success!] Barebones request succeeded.");
-      return res.status(200).json(data);
-    } else {
-      console.error(`[Fail] HTTP ${response.status}: ${JSON.stringify(data)}`);
-      // もし v1 がダメなら、最後のあがきで v1beta に同じ最小構成で投げる
-      const retryUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-      const retryResponse = await fetch(retryUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(minimalPayload)
-      });
-      const retryData = await retryResponse.json();
-      if (retryResponse.ok) return res.status(200).json(retryData);
+    for (const model of modelsToTry) {
+      console.log(`[Barebones] Attempting ${model}...`);
       
-      return res.status(response.status).json(retryData);
+      // v1 エンドポイントで試行
+      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(minimalPayload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          console.log(`[Success!] Connected via ${model}`);
+          return res.status(200).json(data);
+        } else {
+          console.warn(`[Fail] ${model}: ${data.error?.message}`);
+          lastError = data;
+          // 404 以外（認証エラー等）の場合は、ループを中断してエラーを返す
+          if (response.status !== 404) break;
+        }
+      } catch (e) {
+        console.error(`[Error] ${model}:`, e.message);
+      }
     }
+
+    // 全て失敗した場合は、待機を促すメッセージを返す
+    res.status(500).json({ 
+      error: "API準備中", 
+      message: "Google側のAPI有効化を待機しています。24時間以内に利用可能になる予定です。",
+      last_google_error: lastError 
+    });
 
   } catch (error) {
     res.status(500).json({ error: 'Server Error', details: error.message });
