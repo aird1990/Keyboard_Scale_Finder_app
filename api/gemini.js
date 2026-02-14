@@ -1,4 +1,4 @@
-  module.exports = async (req, res) => {
+  export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
   // 最新のモデル名を使用（利用可能なものに変更）
   const modelName = "gemini-1.5-flash"; 
