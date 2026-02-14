@@ -1,8 +1,8 @@
-// Vercel Serverless Function (CommonJS) - Supreme Diagnostic Version
+// Vercel Serverless Function (CommonJS) - Supreme Diagnostic Version (Fixed Payload)
 module.exports = async (req, res) => {
   // 1. CORSヘッダーの設定
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -31,7 +31,6 @@ module.exports = async (req, res) => {
     const { contents, systemInstruction, generationConfig } = req.body;
     
     // 3. 試行パターンの定義 (Endpoint Version x Model Name)
-    // v1 と v1beta の両方を試します
     const attempts = [
       { ver: "v1beta", model: "gemini-1.5-flash" },
       { ver: "v1",     model: "gemini-1.5-flash" },
@@ -47,14 +46,28 @@ module.exports = async (req, res) => {
       
       const url = `https://generativelanguage.googleapis.com/${attempt.ver}/models/${attempt.model}:generateContent?key=${apiKey}`;
 
-      const payload = {
-        contents: contents,
-        generationConfig: generationConfig || {}
+      // 4. バージョンに合わせたデータ構造の変換（重要！）
+      let payload = {
+        contents: contents
       };
 
-      // v1 では systemInstruction の扱いが厳しい場合があるため、存在する時のみ追加
-      if (systemInstruction) {
-        payload.systemInstruction = systemInstruction;
+      if (attempt.ver === "v1") {
+        // v1 (Stable) 用の変換: snake_case を使用
+        payload.generation_config = {};
+        if (generationConfig) {
+          if (generationConfig.responseMimeType) payload.generation_config.response_mime_type = generationConfig.responseMimeType;
+          if (generationConfig.responseSchema) payload.generation_config.response_schema = generationConfig.responseSchema;
+          if (generationConfig.temperature !== undefined) payload.generation_config.temperature = generationConfig.temperature;
+        }
+        if (systemInstruction) {
+          payload.system_instruction = systemInstruction;
+        }
+      } else {
+        // v1beta 用の変換: camelCase を使用
+        payload.generationConfig = generationConfig || {};
+        if (systemInstruction) {
+          payload.systemInstruction = systemInstruction;
+        }
       }
 
       try {
@@ -73,7 +86,7 @@ module.exports = async (req, res) => {
           console.warn(`[Fail] ${attempt.ver}/${attempt.model} -> HTTP ${response.status}: ${data.error?.message || "No message"}`);
           lastFullError = data;
           
-          // もし「APIキーが無効」と言われたら、他のモデルを試しても無駄なので即停止
+          // APIキーが無効な場合は即停止
           if (data.error?.status === "UNAUTHENTICATED" || data.error?.message?.includes("API key not valid")) {
             console.error("[Critical] Google says the API KEY is NOT VALID.");
             return res.status(401).json({ error: "Invalid API Key", details: data.error.message });
@@ -84,10 +97,8 @@ module.exports = async (req, res) => {
       }
     }
 
-    // 4. すべて失敗した場合
+    // すべて失敗した場合
     console.error("[Fatal] All diagnostic attempts failed.");
-    console.error("Last Error from Google:", JSON.stringify(lastFullError));
-    
     res.status(500).json({
       error: "All models failed",
       google_response: lastFullError
