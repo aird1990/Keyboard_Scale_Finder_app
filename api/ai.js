@@ -1,4 +1,4 @@
-// Vercel Serverless Function (CommonJS) - Robust Version
+// Vercel Serverless Function (CommonJS) - Ultimate Robust Version
 module.exports = async (req, res) => {
   // 1. CORSヘッダーの設定
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -14,16 +14,20 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // 2. APIキーの取得と整形
+  // 2. APIキーの徹底的なクリーニング
   const rawKey = process.env.GEMINI_API_KEY || "";
-  const apiKey = rawKey.trim();
+  // 空白削除だけでなく、ダブルクォート(")、シングルクォート(')も全て削除
+  const apiKey = rawKey.replace(/['"]/g, '').trim();
 
-  // 診断用ログ（キーの先頭4文字だけ表示）
-  if (apiKey) {
-    console.log(`[Debug] API Key loaded. Starts with: ${apiKey.substring(0, 4)}...`);
-  } else {
-    console.error("[Error] API Key is empty.");
-    return res.status(500).json({ error: 'API Key is missing in Vercel settings.' });
+  // 診断ログ（キーの先頭4文字と、長さ、文字種チェック）
+  console.log(`[Debug] Processing Request. Key Length: ${apiKey.length}`);
+  if (apiKey.length > 4) {
+    console.log(`[Debug] Key starts with: ${apiKey.substring(0, 4)}...`);
+  }
+
+  if (!apiKey) {
+    console.error("[Error] API Key is empty after trimming.");
+    return res.status(500).json({ error: 'API Key is missing or invalid in Vercel settings.' });
   }
 
   if (req.method !== 'POST') {
@@ -40,12 +44,12 @@ module.exports = async (req, res) => {
       payload.systemInstruction = systemInstruction;
     }
 
-    // 3. 試行するモデルのリスト（Flash -> Pro -> 1.0）
+    // 3. 試行するモデルのリスト
     const modelsToTry = [
       "gemini-1.5-flash",
       "gemini-1.5-pro",
-      "gemini-1.0-pro",
-      "gemini-pro"
+      "gemini-pro",
+      "gemini-1.0-pro"
     ];
 
     let lastError = null;
@@ -70,10 +74,17 @@ module.exports = async (req, res) => {
           successData = data;
           break; 
         } else {
-          console.warn(`[Failed] ${modelName}: ${data.error?.message}`);
+          // エラー詳細をログに出す
+          const errorMsg = data.error?.message || "Unknown error";
+          console.warn(`[Failed] ${modelName}: ${errorMsg}`);
           lastError = data;
-          // 404エラー（モデルが見つからない）以外は中断
-          if (response.status !== 404) break;
+          
+          // 404 (モデルなし) 以外、または PERMISSION_DENIED などの場合は次を試す
+          // ※ 特定のキーで特定モデルが禁止されている場合があるため、403でも次を試すように変更
+          if (response.status !== 404 && response.status !== 403) {
+             // 400 Bad Request (JSON形式ミスなど) はリトライしても無駄なので中断
+             if(response.status === 400) break;
+          }
         }
       } catch (e) {
         console.error(`[Network Error] ${modelName}:`, e);
@@ -85,7 +96,7 @@ module.exports = async (req, res) => {
     if (successData) {
       res.status(200).json(successData);
     } else {
-      console.error("[Fatal] All models failed.");
+      console.error("[Fatal] All models failed. Last error:", JSON.stringify(lastError));
       res.status(500).json(lastError || { error: "All models failed." });
     }
 
