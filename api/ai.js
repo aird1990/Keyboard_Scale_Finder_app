@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
 
   const apiKey = process.env.GEMINI_API_KEY;
   // ★変更点: より具体的なバージョン指定に変更
-  const modelName = "gemini-1.5-flash"; 
+  const modelName = "gemini-pro"; 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   if (req.method !== 'POST') {
