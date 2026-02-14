@@ -1,7 +1,6 @@
 {
   "name": "keyboard-scale-finder",
   "version": "1.0.0",
-  "type": "module",
   "engines": {
     "node": "22.x"
   }
