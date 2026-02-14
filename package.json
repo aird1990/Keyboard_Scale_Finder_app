@@ -5,3 +5,20 @@
     "node": "18.x"
   }
 }
+```
+
+### 手順3: `gemini.js` の記述を確認
+`api/gemini.js` の書き出しが以下のようになっているか確認してください（CommonJS形式）。
+
+**✅ 正しい書き出し:**
+```javascript
+module.exports = async (req, res) => {
+  // ... 中身
+}
+```
+
+**❌ 修正が必要な書き出し:**
+`export default async function handler...` となっている場合は、上記（`module.exports`）に書き換えてください。
+
+### 手順4: 自動デプロイを待つ
+GitHubに変更を保存すると、Vercelが自動的に再デプロイを開始します。Deployments画面でステータスが「Ready（緑色）」になれば成功です。
