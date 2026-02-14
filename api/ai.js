@@ -14,9 +14,11 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  // ★変更点: より具体的なバージョン指定に変更
-  const modelName = "gemini-1.5-flash"; 
+  // キーの余分な空白を削除
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  
+  // ★重要変更: 最も安定して動く "gemini-pro" に固定します
+  const modelName = "gemini-pro"; 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   if (req.method !== 'POST') {
@@ -30,6 +32,7 @@ module.exports = async (req, res) => {
 
   try {
     const { contents, systemInstruction, generationConfig } = req.body;
+
     const payload = {
       contents: contents,
       generationConfig: generationConfig || {}
@@ -41,14 +44,15 @@ module.exports = async (req, res) => {
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      // エラーログを詳細に出力
       console.error("Gemini API Error:", JSON.stringify(data, null, 2));
       return res.status(response.status).json(data);
     }
