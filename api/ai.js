@@ -1,8 +1,8 @@
-// Vercel Serverless Function (CommonJS) - Ultimate Robust Version
+// Vercel Serverless Function (CommonJS) - Supreme Diagnostic Version
 module.exports = async (req, res) => {
   // 1. CORSヘッダーの設定
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -14,20 +14,13 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // 2. APIキーの徹底的なクリーニング
+  // 2. APIキーの取得（徹底クリーニング）
   const rawKey = process.env.GEMINI_API_KEY || "";
-  // 空白削除だけでなく、ダブルクォート(")、シングルクォート(')も全て削除
   const apiKey = rawKey.replace(/['"]/g, '').trim();
 
-  // 診断ログ（キーの先頭4文字と、長さ、文字種チェック）
-  console.log(`[Debug] Processing Request. Key Length: ${apiKey.length}`);
-  if (apiKey.length > 4) {
-    console.log(`[Debug] Key starts with: ${apiKey.substring(0, 4)}...`);
-  }
-
   if (!apiKey) {
-    console.error("[Error] API Key is empty after trimming.");
-    return res.status(500).json({ error: 'API Key is missing or invalid in Vercel settings.' });
+    console.error("[Fatal] GEMINI_API_KEY is completely empty.");
+    return res.status(500).json({ error: 'API Key is missing.' });
   }
 
   if (req.method !== 'POST') {
@@ -36,29 +29,33 @@ module.exports = async (req, res) => {
 
   try {
     const { contents, systemInstruction, generationConfig } = req.body;
-    const payload = {
-      contents: contents,
-      generationConfig: generationConfig || {}
-    };
-    if (systemInstruction) {
-      payload.systemInstruction = systemInstruction;
-    }
-
-    // 3. 試行するモデルのリスト
-    const modelsToTry = [
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-pro",
-      "gemini-1.0-pro"
+    
+    // 3. 試行パターンの定義 (Endpoint Version x Model Name)
+    // v1 と v1beta の両方を試します
+    const attempts = [
+      { ver: "v1beta", model: "gemini-1.5-flash" },
+      { ver: "v1",     model: "gemini-1.5-flash" },
+      { ver: "v1beta", model: "gemini-1.5-pro" },
+      { ver: "v1",     model: "gemini-1.5-pro" },
+      { ver: "v1beta", model: "gemini-pro" }
     ];
 
-    let lastError = null;
-    let successData = null;
+    let lastFullError = null;
 
-    // 4. 自動フォールバック接続
-    for (const modelName of modelsToTry) {
-      console.log(`[Attempt] Connecting to ${modelName}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    for (const attempt of attempts) {
+      console.log(`[Diagnostic] Trying ${attempt.ver} with ${attempt.model}...`);
+      
+      const url = `https://generativelanguage.googleapis.com/${attempt.ver}/models/${attempt.model}:generateContent?key=${apiKey}`;
+
+      const payload = {
+        contents: contents,
+        generationConfig: generationConfig || {}
+      };
+
+      // v1 では systemInstruction の扱いが厳しい場合があるため、存在する時のみ追加
+      if (systemInstruction) {
+        payload.systemInstruction = systemInstruction;
+      }
 
       try {
         const response = await fetch(url, {
@@ -70,38 +67,34 @@ module.exports = async (req, res) => {
         const data = await response.json();
 
         if (response.ok) {
-          console.log(`[Success] Connected to ${modelName}`);
-          successData = data;
-          break; 
+          console.log(`[Success!] Connection established using ${attempt.ver}/${attempt.model}`);
+          return res.status(200).json(data);
         } else {
-          // エラー詳細をログに出す
-          const errorMsg = data.error?.message || "Unknown error";
-          console.warn(`[Failed] ${modelName}: ${errorMsg}`);
-          lastError = data;
+          console.warn(`[Fail] ${attempt.ver}/${attempt.model} -> HTTP ${response.status}: ${data.error?.message || "No message"}`);
+          lastFullError = data;
           
-          // 404 (モデルなし) 以外、または PERMISSION_DENIED などの場合は次を試す
-          // ※ 特定のキーで特定モデルが禁止されている場合があるため、403でも次を試すように変更
-          if (response.status !== 404 && response.status !== 403) {
-             // 400 Bad Request (JSON形式ミスなど) はリトライしても無駄なので中断
-             if(response.status === 400) break;
+          // もし「APIキーが無効」と言われたら、他のモデルを試しても無駄なので即停止
+          if (data.error?.status === "UNAUTHENTICATED" || data.error?.message?.includes("API key not valid")) {
+            console.error("[Critical] Google says the API KEY is NOT VALID.");
+            return res.status(401).json({ error: "Invalid API Key", details: data.error.message });
           }
         }
       } catch (e) {
-        console.error(`[Network Error] ${modelName}:`, e);
-        lastError = { error: { message: e.message } };
+        console.error(`[Network Error] ${attempt.ver}/${attempt.model}:`, e.message);
       }
     }
 
-    // 5. 結果の返却
-    if (successData) {
-      res.status(200).json(successData);
-    } else {
-      console.error("[Fatal] All models failed. Last error:", JSON.stringify(lastError));
-      res.status(500).json(lastError || { error: "All models failed." });
-    }
+    // 4. すべて失敗した場合
+    console.error("[Fatal] All diagnostic attempts failed.");
+    console.error("Last Error from Google:", JSON.stringify(lastFullError));
+    
+    res.status(500).json({
+      error: "All models failed",
+      google_response: lastFullError
+    });
 
   } catch (error) {
-    console.error("Server Internal Error:", error);
-    res.status(500).json({ error: 'Server Internal Error', details: error.message });
+    console.error("[Server Error]", error);
+    res.status(500).json({ error: 'Server Error', details: error.message });
   }
 };
