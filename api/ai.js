@@ -15,14 +15,15 @@ module.exports = async (req, res) => {
     const { contents, systemInstruction, generationConfig } = req.body;
     
     // 試行パターンの定義
-    // 1. v1beta (最新機能あり) 
-    // 2. v1 (最新機能あり)
-    // 3. v1 (レガシー構成: システム指示を使わない) ← これが本命
+    // 優先順位を整理し、より多くの組み合わせを試します
     const attempts = [
       { ver: "v1beta", mode: "modern", model: "gemini-1.5-flash" },
       { ver: "v1",     mode: "modern", model: "gemini-1.5-flash" },
+      { ver: "v1beta", mode: "legacy", model: "gemini-1.5-flash" },
       { ver: "v1",     mode: "legacy", model: "gemini-1.5-flash" },
-      { ver: "v1",     mode: "legacy", model: "gemini-pro" }
+      { ver: "v1beta", mode: "legacy", model: "gemini-pro" },
+      { ver: "v1",     mode: "legacy", model: "gemini-pro" },
+      { ver: "v1",     mode: "legacy", model: "gemini-1.0-pro" }
     ];
 
     let lastError = null;
@@ -39,26 +40,39 @@ module.exports = async (req, res) => {
         payload = { contents };
         const isV1 = attempt.ver === "v1";
         const config = {};
-        if (generationConfig?.responseMimeType) config[isV1 ? "response_mime_type" : "responseMimeType"] = generationConfig.responseMimeType;
-        if (generationConfig?.responseSchema)   config[isV1 ? "response_schema" : "responseSchema"] = generationConfig.responseSchema;
-        if (generationConfig?.temperature)      config.temperature = generationConfig.temperature;
         
-        payload[isV1 ? "generation_config" : "generationConfig"] = config;
-        if (systemInstruction) payload[isV1 ? "system_instruction" : "systemInstruction"] = systemInstruction;
+        // 400エラーの原因となる可能性のあるフィールドを個別にチェックして追加
+        if (generationConfig?.responseMimeType) {
+          config[isV1 ? "response_mime_type" : "responseMimeType"] = generationConfig.responseMimeType;
+        }
+        if (generationConfig?.responseSchema) {
+          config[isV1 ? "response_schema" : "responseSchema"] = generationConfig.responseSchema;
+        }
+        if (generationConfig?.temperature !== undefined) {
+          config.temperature = generationConfig.temperature;
+        }
+        
+        if (Object.keys(config).length > 0) {
+          payload[isV1 ? "generation_config" : "generationConfig"] = config;
+        }
+        
+        if (systemInstruction) {
+          payload[isV1 ? "system_instruction" : "systemInstruction"] = systemInstruction;
+        }
       } else {
-        // ★レガシー構成：システム指示を使わず、メッセージの先頭に指示を埋め込む
-        // 400エラー（Unknown name）を回避するための唯一の方法
-        const legacyContents = JSON.parse(JSON.stringify(contents)); // ディープコピー
+        // ★超・安全モード（レガシー）：Googleが「知らない」と言っているフィールドを一切含めない
+        const legacyContents = JSON.parse(JSON.stringify(contents));
+        
+        // システム指示をユーザープロンプトに統合
         if (systemInstruction) {
           const systemText = systemInstruction.parts?.[0]?.text || "";
-          if (legacyContents[0]) {
-            legacyContents[0].parts[0].text = `Instructions: ${systemText}\n\nUser Request: ${legacyContents[0].parts[0].text}`;
+          if (legacyContents[0] && legacyContents[0].parts && legacyContents[0].parts[0]) {
+            legacyContents[0].parts[0].text = `[System Instructions]\n${systemText}\n\n[User Request]\n${legacyContents[0].parts[0].text}`;
           }
         }
-        payload = { 
-          contents: legacyContents,
-          generationConfig: { temperature: generationConfig?.temperature || 0.7 } 
-        };
+        
+        // 400エラーを回避するため、generationConfigすら含めない最小構成
+        payload = { contents: legacyContents };
       }
 
       try {
@@ -71,19 +85,32 @@ module.exports = async (req, res) => {
         const data = await response.json();
 
         if (response.ok) {
-          console.log(`[Success!] Connected via ${attempt.ver} ${attempt.mode}`);
+          console.log(`[Success!] Connected via ${attempt.ver} ${attempt.mode} with ${attempt.model}`);
           return res.status(200).json(data);
         } else {
-          console.warn(`[Fail] ${attempt.ver}/${attempt.mode}: ${data.error?.message}`);
+          // 詳細なエラーをログに出力
+          const errorMsg = data.error?.message || "No message";
+          console.warn(`[Fail] ${attempt.ver}/${attempt.mode}/${attempt.model} -> HTTP ${response.status}: ${errorMsg}`);
           lastError = data;
+          
+          // APIキー自体が無効な場合は即座に終了
+          if (response.status === 401 || (data.error?.status === "UNAUTHENTICATED")) {
+            console.error("[Fatal] API Key is invalid.");
+            return res.status(401).json(data);
+          }
         }
       } catch (e) {
-        console.error(`[Error] ${attempt.ver}/${attempt.mode}:`, e.message);
+        console.error(`[Network Error] ${attempt.ver}/${attempt.mode}:`, e.message);
       }
     }
 
-    res.status(500).json({ error: "All attempts failed", last_google_error: lastError });
+    console.error("[Fatal] All attempts failed. Final diagnostic information sent to client.");
+    res.status(500).json({ 
+      error: "All attempts failed", 
+      diagnostic: "Please check Vercel Runtime Logs for full details.",
+      last_google_error: lastError 
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Server Error', details: error.message });
+    res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 };
