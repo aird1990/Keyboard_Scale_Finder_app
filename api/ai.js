@@ -1,73 +1,64 @@
-// Vercel Serverless Function (CommonJS) - Supreme Diagnostic Version (Fixed Payload)
+// Vercel Serverless Function (CommonJS) - Universal Legacy Compatibility Version
 module.exports = async (req, res) => {
-  // 1. CORSヘッダーの設定
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // 2. APIキーの取得（徹底クリーニング）
-  const rawKey = process.env.GEMINI_API_KEY || "";
-  const apiKey = rawKey.replace(/['"]/g, '').trim();
-
-  if (!apiKey) {
-    console.error("[Fatal] GEMINI_API_KEY is completely empty.");
-    return res.status(500).json({ error: 'API Key is missing.' });
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const apiKey = (process.env.GEMINI_API_KEY || "").replace(/['"]/g, '').trim();
+  if (!apiKey) return res.status(500).json({ error: 'API Key missing.' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { contents, systemInstruction, generationConfig } = req.body;
     
-    // 3. 試行パターンの定義 (Endpoint Version x Model Name)
+    // 試行パターンの定義
+    // 1. v1beta (最新機能あり) 
+    // 2. v1 (最新機能あり)
+    // 3. v1 (レガシー構成: システム指示を使わない) ← これが本命
     const attempts = [
-      { ver: "v1beta", model: "gemini-1.5-flash" },
-      { ver: "v1",     model: "gemini-1.5-flash" },
-      { ver: "v1beta", model: "gemini-1.5-pro" },
-      { ver: "v1",     model: "gemini-1.5-pro" },
-      { ver: "v1beta", model: "gemini-pro" }
+      { ver: "v1beta", mode: "modern", model: "gemini-1.5-flash" },
+      { ver: "v1",     mode: "modern", model: "gemini-1.5-flash" },
+      { ver: "v1",     mode: "legacy", model: "gemini-1.5-flash" },
+      { ver: "v1",     mode: "legacy", model: "gemini-pro" }
     ];
 
-    let lastFullError = null;
+    let lastError = null;
 
     for (const attempt of attempts) {
-      console.log(`[Diagnostic] Trying ${attempt.ver} with ${attempt.model}...`);
+      console.log(`[Attempt] ${attempt.ver} (${attempt.mode}) with ${attempt.model}...`);
       
       const url = `https://generativelanguage.googleapis.com/${attempt.ver}/models/${attempt.model}:generateContent?key=${apiKey}`;
 
-      // 4. バージョンに合わせたデータ構造の変換（重要！）
-      let payload = {
-        contents: contents
-      };
+      let payload = {};
 
-      if (attempt.ver === "v1") {
-        // v1 (Stable) 用の変換: snake_case を使用
-        payload.generation_config = {};
-        if (generationConfig) {
-          if (generationConfig.responseMimeType) payload.generation_config.response_mime_type = generationConfig.responseMimeType;
-          if (generationConfig.responseSchema) payload.generation_config.response_schema = generationConfig.responseSchema;
-          if (generationConfig.temperature !== undefined) payload.generation_config.temperature = generationConfig.temperature;
-        }
-        if (systemInstruction) {
-          payload.system_instruction = systemInstruction;
-        }
+      if (attempt.mode === "modern") {
+        // 最新の書き方
+        payload = { contents };
+        const isV1 = attempt.ver === "v1";
+        const config = {};
+        if (generationConfig?.responseMimeType) config[isV1 ? "response_mime_type" : "responseMimeType"] = generationConfig.responseMimeType;
+        if (generationConfig?.responseSchema)   config[isV1 ? "response_schema" : "responseSchema"] = generationConfig.responseSchema;
+        if (generationConfig?.temperature)      config.temperature = generationConfig.temperature;
+        
+        payload[isV1 ? "generation_config" : "generationConfig"] = config;
+        if (systemInstruction) payload[isV1 ? "system_instruction" : "systemInstruction"] = systemInstruction;
       } else {
-        // v1beta 用の変換: camelCase を使用
-        payload.generationConfig = generationConfig || {};
+        // ★レガシー構成：システム指示を使わず、メッセージの先頭に指示を埋め込む
+        // 400エラー（Unknown name）を回避するための唯一の方法
+        const legacyContents = JSON.parse(JSON.stringify(contents)); // ディープコピー
         if (systemInstruction) {
-          payload.systemInstruction = systemInstruction;
+          const systemText = systemInstruction.parts?.[0]?.text || "";
+          if (legacyContents[0]) {
+            legacyContents[0].parts[0].text = `Instructions: ${systemText}\n\nUser Request: ${legacyContents[0].parts[0].text}`;
+          }
         }
+        payload = { 
+          contents: legacyContents,
+          generationConfig: { temperature: generationConfig?.temperature || 0.7 } 
+        };
       }
 
       try {
@@ -80,32 +71,19 @@ module.exports = async (req, res) => {
         const data = await response.json();
 
         if (response.ok) {
-          console.log(`[Success!] Connection established using ${attempt.ver}/${attempt.model}`);
+          console.log(`[Success!] Connected via ${attempt.ver} ${attempt.mode}`);
           return res.status(200).json(data);
         } else {
-          console.warn(`[Fail] ${attempt.ver}/${attempt.model} -> HTTP ${response.status}: ${data.error?.message || "No message"}`);
-          lastFullError = data;
-          
-          // APIキーが無効な場合は即停止
-          if (data.error?.status === "UNAUTHENTICATED" || data.error?.message?.includes("API key not valid")) {
-            console.error("[Critical] Google says the API KEY is NOT VALID.");
-            return res.status(401).json({ error: "Invalid API Key", details: data.error.message });
-          }
+          console.warn(`[Fail] ${attempt.ver}/${attempt.mode}: ${data.error?.message}`);
+          lastError = data;
         }
       } catch (e) {
-        console.error(`[Network Error] ${attempt.ver}/${attempt.model}:`, e.message);
+        console.error(`[Error] ${attempt.ver}/${attempt.mode}:`, e.message);
       }
     }
 
-    // すべて失敗した場合
-    console.error("[Fatal] All diagnostic attempts failed.");
-    res.status(500).json({
-      error: "All models failed",
-      google_response: lastFullError
-    });
-
+    res.status(500).json({ error: "All attempts failed", last_google_error: lastError });
   } catch (error) {
-    console.error("[Server Error]", error);
     res.status(500).json({ error: 'Server Error', details: error.message });
   }
 };
