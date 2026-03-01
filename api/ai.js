@@ -1,6 +1,5 @@
 // Vercel Serverless Function (CommonJS) - Final Clean Version
 module.exports = async (req, res) => {
-  // CORS設定（ブラウザからのアクセス許可）
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -8,7 +7,6 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // APIキーの取得と不要な記号の削除
   const apiKey = (process.env.GEMINI_API_KEY || "").replace(/['"]/g, '').trim();
   
   if (!apiKey) {
@@ -22,11 +20,10 @@ module.exports = async (req, res) => {
   try {
     const { contents, systemInstruction, generationConfig } = req.body;
     
-    // 現在最も高速で安定している最新モデルを指定
+    // 最も安定している最新モデルを指定
     const modelName = "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-    // 送信データの組み立て
     const payload = { contents };
     if (systemInstruction) payload.systemInstruction = systemInstruction;
     if (generationConfig) payload.generationConfig = generationConfig;
