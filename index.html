@@ -661,7 +661,7 @@
                 <button id="ai-submit" class="ai-btn flex-grow py-3">生成</button>
                 <button id="ai-close" class="btn flex-grow py-3">閉じる</button>
             </div>
-            <p id="ai-status" class="text-[10px] text-gray-500 mt-4 italic text-center min-h-[15px]"></p>
+            <p id="ai-status" class="text-[10px] text-red-400 mt-4 font-bold text-center min-h-[15px]"></p>
         </div>
     </div>
 
@@ -797,9 +797,9 @@
             }
         };
 
+        // ★★★ エラー詳細を画面に出すように強化されたAI呼び出し関数 ★★★
         async function callGemini(prompt, systemPrompt, schema) {
-            
-            const url = `/api/ai`;
+            const url = `/api/ai`; // 呼び出し先ファイル名は「api/ai.js」
             
             const payload = {
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -818,11 +818,29 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const data = await response.json();
-                    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+                    
+                    let data = null;
+                    try { data = await response.json(); } catch(e) {}
+
+                    if (!response.ok) {
+                        let errMsg = `HTTP ${response.status} エラー`;
+                        if (response.status === 404 && !data) {
+                            errMsg = `エラー404: /api/ai.js ファイルが見つかりません。GitHubのファイル名を確認してください。`;
+                        } else if (data && data.error && data.error.message) {
+                            errMsg = `Google API エラー: ${data.error.message}`;
+                        } else if (data && data.error) {
+                            errMsg = `API エラー: ${JSON.stringify(data.error)}`;
+                        } else if (data && data.details) {
+                            errMsg = `Vercel エラー: ${data.details}`;
+                        }
+                        throw new Error(errMsg);
+                    }
+                    
+                    if (data && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
                         return JSON.parse(data.candidates[0].content.parts[0].text);
-                    } else throw new Error("No content");
+                    } else {
+                        throw new Error("応答データが空です");
+                    }
                 } catch (e) {
                     if (i === 4) throw e;
                     await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
@@ -1093,7 +1111,7 @@
 
         async function handleAI() {
             const prompt = aiInput.value;
-            aiStatus.textContent = "Generating...";
+            aiStatus.textContent = "考え中...";
             aiSubmit.disabled = true;
             try {
                 if (aiMode === 'scale') {
@@ -1121,7 +1139,7 @@
                 }
                 aiModal.classList.add('hidden');
             } catch (e) { 
-                console.error(e); aiStatus.textContent = "Failed: " + e.message; 
+                console.error(e); aiStatus.textContent = e.message; 
             } finally { aiSubmit.disabled = false; updateUI(); }
         }
 
