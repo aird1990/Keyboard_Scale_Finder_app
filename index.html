@@ -324,6 +324,7 @@
             grid-template-columns: 1fr 1fr 1fr;
             gap: 8px;
             margin-top: 8px;
+            padding-bottom: 4px; /* 安全マージン（スクロールバー発生を完全防止） */
         }
 
         .btn {
@@ -336,17 +337,22 @@
             text-transform: uppercase;
             font-size: 12px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: transform 0.1s, background-color 0.2s; /* トランジションをスムーズに */
             border: 1px solid #444;
             display: flex;
             align-items: center;
             justify-content: center;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
+            /* テキスト折り返しによる高さ増加を完全防止 */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .btn:hover { background-color: #444; }
-        .btn:active { background-color: #555; transform: translateY(1px); }
+        /* 下への移動（translateY）を廃止し、縮小（scale）に変更してレイアウト崩れを防ぐ */
+        .btn:active { background-color: #555; transform: scale(0.97); }
 
         #sound-toggle.active-green {
             background-color: var(--accent-green-bright) !important;
