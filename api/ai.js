@@ -28,11 +28,11 @@ module.exports = async (req, res) => {
 
     // ★ 404エラー対策：Googleが受け付けてくれるモデル名を順番に試すリスト
     const modelsToTry = [
-      "gemini-2.5-flash",          // 最新の高速モデル
-      "gemini-1.5-flash-latest",   // 1.5の最新エイリアス
-      "gemini-1.5-flash-8b",       // 1.5の軽量版
-      "gemini-1.5-pro",            // プロ版
-      "gemini-pro"                 // 旧標準モデル
+      "gemini-2.5-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-flash-8b",
+      "gemini-1.5-pro",
+      "gemini-pro"
     ];
 
     let lastError = null;
@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
           return res.status(200).json(data);
         } else {
           lastError = data;
-          // 404エラー（モデルが見つからない）の場合は次のモデルを試す。それ以外（認証エラーなど）は終了
+          // 404エラー（モデルが見つからない）の場合は次のモデルを試す。それ以外は終了
           if (response.status !== 404) {
             break;
           }
