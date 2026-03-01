@@ -478,6 +478,7 @@
             .seq-cell {
                 width: auto;
                 flex: 1;
+                min-width: 20px; /* ★32ステップ対応：マスが潰れすぎないように最低幅を確保 */
             }
             .seq-row {
                 width: 100%;
@@ -533,8 +534,9 @@
             <div class="status-area">
                 <div class="flex items-center flex-wrap gap-2 mb-1">
                     <span class="label-small hidden sm:inline">NAVIGATOR</span>
-                    <button id="sound-toggle" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
-                        <span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF
+                    <!-- ★デフォルトON用のクラス active-green を追加し、アイコンと文字を変更 -->
+                    <button id="sound-toggle" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300 active-green">
+                        <span id="sound-icon">🔊</span> <span class="hidden xs:inline">SOUND</span> ON
                     </button>
                     <button id="rec-btn" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
                         <span class="w-2 h-2 rounded-full bg-red-600"></span> REC
@@ -558,7 +560,7 @@
         <div id="view-sequencer" class="view-panel hidden">
             <!-- View Mode Toggle & Clear -->
             <div class="flex justify-between items-center mb-2 flex-shrink-0">
-                <div class="label-small text-gray-500 hidden sm:block">PIANO ROLL</div>
+                <div class="label-small text-gray-500 hidden sm:block">PIANO ROLL (8 BARS)</div>
                 <div class="flex gap-2 w-full sm:w-auto justify-between sm:justify-end">
                     <div class="flex bg-black/40 rounded p-1 gap-1 border border-[#333]">
                         <button id="seq-mode-scale" class="text-[9px] px-3 py-1 rounded bg-[#333] text-white font-bold transition-colors">SCALE</button>
@@ -589,7 +591,7 @@
                     </select>
                 </div>
                 <div class="text-[10px] text-gray-500 leading-relaxed">
-                    <p>Version: 1.1.0 (Mobile Optimized)</p>
+                    <p>Version: 1.2.0 (8 Bars / Auto Sound On)</p>
                     <p>Tap "Save to Home Screen" to use as an app.</p>
                 </div>
             </div>
@@ -700,6 +702,7 @@
         const aiModalTitle = document.getElementById('ai-modal-title');
         
         // Sequencer view mode controls
+        // ★ここで確実に定義しています
         const btnSeqScale = document.getElementById('seq-mode-scale');
         const btnSeqChrom = document.getElementById('seq-mode-chromatic');
         let sequencerViewMode = 'scale'; 
@@ -756,7 +759,8 @@
             }
         };
 
-        let audioCtx, masterGain, isPlaying = false, isSoundOn = false, isRecording = false, currentStep = 0, timer, sequencerData = {};
+        // ★デフォルトでサウンドをONにする変更
+        let audioCtx, masterGain, isPlaying = false, isSoundOn = true, isRecording = false, currentStep = 0, timer, sequencerData = {};
         let aiMode = 'scale';
 
         const MidiEncoder = {
@@ -803,9 +807,8 @@
             }
         };
 
-        // ★★★ エラー詳細を画面に出すように強化されたAI呼び出し関数 ★★★
         async function callGemini(prompt, systemPrompt, schema) {
-            const url = `/api/ai`; // 呼び出し先ファイル名は「api/ai.js」
+            const url = `/api/ai`;
             
             const payload = {
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -892,7 +895,6 @@
             keyboardContainer.innerHTML = '';
             
             // Calculate layout for 25 keys (C3 to C5)
-            // White keys total: 15 (C3, D3, E3, F3, G3, A3, B3, C4, D4, E4, F4, G4, A4, B4, C5)
             const whiteKeyCount = 15;
             const whiteKeyWidthPercent = 100 / whiteKeyCount;
             let whiteKeyIndex = 0;
@@ -906,7 +908,6 @@
                 
                 // Positioning
                 if (note.isBlack) {
-                    // Position black key between white keys
                     const width = whiteKeyWidthPercent * 0.7; 
                     keyDiv.style.width = `${width}%`;
                     keyDiv.style.left = `${(whiteKeyIndex * whiteKeyWidthPercent) - (width / 2)}%`;
@@ -916,9 +917,7 @@
                     whiteKeyIndex++;
                 }
 
-                // Inner content - Show text only on wider screens or for root notes
                 if ((!note.isBlack || window.innerWidth > 600) && window.innerWidth > 350) {
-                    // Shorten sharp/flat names on small screens
                     const displayName = note.name.replace('#', '♯');
                     if (window.innerWidth < 480) {
                         keyDiv.innerHTML = `<span style="font-size: 8px;">${displayName}</span>`;
@@ -967,9 +966,10 @@
                 const grid = document.createElement('div');
                 grid.className = 'seq-grid';
                 grid.dataset.padIndex = realIdx;
-                if (!sequencerData[realIdx]) sequencerData[realIdx] = new Array(16).fill(false);
+                // ★ 8小節（32ステップ）に拡張
+                if (!sequencerData[realIdx]) sequencerData[realIdx] = new Array(32).fill(false);
 
-                for (let s = 0; s < 16; s++) {
+                for (let s = 0; s < 32; s++) {
                     const cell = document.createElement('div');
                     cell.className = `seq-cell ${sequencerData[realIdx][s] ? 'active' : ''} ${Math.floor(s/4)%2===1?'measure-alt':''}`;
                     cell.dataset.stepIndex = s;
@@ -1004,12 +1004,13 @@
             
             const cells = seqContainer.querySelectorAll('.seq-cell');
             cells.forEach(cell => {
-                if (parseInt(cell.dataset.stepIndex) === (currentStep % 16)) cell.classList.add('current');
+                // ★ 32ステップループに対応
+                if (parseInt(cell.dataset.stepIndex) === (currentStep % 32)) cell.classList.add('current');
                 else cell.classList.remove('current');
             });
 
             if (modeSelect.value === 'scale') {
-                const stepIdx = currentStep % 16;
+                const stepIdx = currentStep % 32;
                 const hits = [];
                 Object.keys(sequencerData).forEach(idx => {
                     if (sequencerData[idx][stepIdx]) {
@@ -1018,7 +1019,7 @@
                     }
                 });
                 updateUI(hits);
-                currentStep = (currentStep + 1) % 16;
+                currentStep = (currentStep + 1) % 32;
             } else {
                 const curKey = keyTypeSelect.value;
                 const curSub = subSelect.value;
@@ -1035,7 +1036,6 @@
                         
                         const hits = [];
                         
-                        // 初心者向け：ルートポジションに近い形でボイシング
                         let currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0] && k.octave === 3);
                         if (currentRootIndex === -1) currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0]); // fallback
 
@@ -1068,16 +1068,17 @@
                         updateUI(hits);
                         
                         if (isRecording) {
-                            const startStep = stepIdx % 16;
+                            // ★ 32ステップシーケンサーの現在の再生位置に記録
+                            const startStep = currentStep % 32;
                             hits.forEach(keyIdx => {
-                                if (!sequencerData[keyIdx]) sequencerData[keyIdx] = new Array(16).fill(false);
+                                if (!sequencerData[keyIdx]) sequencerData[keyIdx] = new Array(32).fill(false);
                                 sequencerData[keyIdx][startStep] = true;
                             });
                             if (!document.getElementById('view-sequencer').classList.contains('hidden')) renderSequencer();
                         }
                     }
                     currentStep++;
-                } else currentStep = (currentStep + 1) % 16;
+                } else currentStep = (currentStep + 1) % 32;
             }
             timer = setTimeout(runCycle, stepMs);
         }
@@ -1090,7 +1091,8 @@
                 { delta: 0, bytes: [0xFF, 0x03, 0x09, ...MidiEncoder.strToBytes('Sequencer')] }
             ];
             let absoluteEvents = [];
-            for (let s = 0; s < 16; s++) {
+            // ★ MIDIエクスポートも32ステップに対応
+            for (let s = 0; s < 32; s++) {
                 const startTime = s * ticksPerBeat;
                 const endTime = startTime + Math.floor(ticksPerBeat * 0.8);
                 Object.keys(sequencerData).forEach(idx => {
