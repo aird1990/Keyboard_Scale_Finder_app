@@ -3,22 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Keyboard Scale Finder</title>
+    <title>Pad Scale Finder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
             --bg-dark: #0f0f0f;
             --container-bg: #1a1a1a;
-            --white-key: #e0e0e0;
-            --black-key: #222222;
+            --pad-bg: #222222;
             --accent-red: #ff3b3b;
             --accent-green: #00ff00;
-            --accent-green-dark: #008f00;
             --accent-green-bright: #39ff14;
             --border-color: #333333;
         }
 
-        /* Prevent pull-to-refresh on mobile */
         body {
             background-color: var(--bg-dark);
             color: #ffffff;
@@ -26,64 +23,48 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            height: 100dvh; /* 固定してスクロールを防ぐ */
             min-height: 100dvh;
             margin: 0;
-            overflow: hidden;
-            overscroll-behavior: none;
+            overflow: hidden; /* Prevent body scroll, handle inside container */
+            touch-action: manipulation;
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
         }
 
         .mpc-container {
             background-color: var(--container-bg);
             border: 1px solid var(--border-color);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
             display: flex;
             flex-direction: column;
-            width: 95%;
-            max-width: 1000px;
-            height: 96vh;
-            height: 96dvh;
-            max-height: 1100px;
-            
-            /* Desktop Default */
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            width: 100%;
+            height: 100%; /* コンテナ内で高さを100%に */
+            max-height: 100dvh;
+            padding: 10px; /* 見切れ対策：少し狭く */
+            box-sizing: border-box; /* パディングを含めてサイズ計算 */
+            overflow: hidden;
         }
 
-        /* Mobile Styles */
-        @media (max-width: 640px) {
+        @media (min-width: 768px) {
             .mpc-container {
-                width: 100%;
-                height: 100vh;
-                height: 100dvh;
-                border-radius: 0;
-                border: none;
-                padding: 12px;
-            }
-            
-            .header {
-                margin-bottom: 12px !important;
-            }
-            
-            .controls-grid {
-                gap: 8px !important;
-            }
-            
-            .btn, select, input {
-                padding: 10px !important;
-                font-size: 12px !important;
-            }
-            
-            .bpm-value {
-                font-size: 20px !important;
-            }
-
-            .label-small {
-                font-size: 9px !important;
-            }
-            
-            .status-text {
-                font-size: 11px !important;
+                width: 95%;
+                max-width: 900px;
+                height: 96vh;
+                max-height: 1100px;
+                border-radius: 16px;
+                padding: 32px;
             }
         }
 
@@ -91,7 +72,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 20px;
+            margin-bottom: 8px; /* 見切れ対策 */
             flex-shrink: 0;
         }
 
@@ -101,7 +82,7 @@
 
         .label-small {
             font-size: 10px;
-            color: #666;
+            color: #888;
             letter-spacing: 1px;
             text-transform: uppercase;
         }
@@ -111,162 +92,131 @@
             font-weight: bold;
             font-style: italic;
             font-size: 14px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
         }
 
         .bpm-display {
             text-align: right;
-            flex-shrink: 0;
         }
 
         .bpm-value {
             color: var(--accent-green);
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 800;
             line-height: 1;
         }
 
+        @media (min-width: 768px) {
+            .bpm-value { font-size: 28px; }
+            .header { margin-bottom: 24px; }
+        }
+
         .view-panel {
             flex-grow: 1;
+            flex-shrink: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: relative;
-            min-height: 0; /* Important for flex child scrolling */
+            min-height: 0; /* Flexbox overflow fix */
         }
 
-        /* Keyboard Styles */
-        .keyboard-container {
+        .pad-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px; /* 見切れ対策: 少し狭く */
             flex-grow: 1;
-            display: flex;
+            margin-bottom: 8px; /* 見切れ対策 */
+            height: 100%; 
+            min-height: 0;
+        }
+
+        @media (min-width: 768px) {
+            .pad-grid { gap: 16px; margin-bottom: 24px; }
+        }
+
+        .pad {
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border: 1px solid #444;
+            border-radius: 6px;
             position: relative;
-            background: #111;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 16px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
-            touch-action: none; /* Prevent scroll on keyboard */
-        }
-
-        .key {
-            position: absolute;
-            top: 0;
-            border-radius: 0 0 4px 4px;
-            cursor: pointer;
-            transition: background 0.05s, transform 0.05s;
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             justify-content: center;
-            padding-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
             user-select: none;
-            font-size: 10px;
-            font-weight: bold;
-            z-index: 1;
+            touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
+            min-height: 0; /* iPhoneの小さい画面対策 */
         }
 
-        .key.white {
-            height: 100%;
-            background: var(--white-key);
-            color: #333;
-            border: 1px solid #000;
-            border-top: none;
-            z-index: 1;
-        }
-        
-        .key.white:active, .key.white.playing {
-            background: #bbb;
-            transform: scale(0.98);
-            transform-origin: top;
+        .pad-id {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            font-size: 8px;
+            color: #555;
         }
 
-        .key.black {
-            height: 60%;
-            background: var(--black-key);
-            color: #888;
-            border: 1px solid #000;
-            border-top: none;
-            z-index: 2;
-            border-radius: 0 0 3px 3px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        .pad-note {
+            font-size: 16px; /* 少し小さく */
+            font-weight: 700;
+            color: #eee;
+            pointer-events: none;
         }
 
-        .key.black:active, .key.black.playing {
-            background: #444;
-            transform: scale(0.98);
-            transform-origin: top;
+        @media (min-width: 768px) {
+            .pad-id { top: 8px; left: 8px; font-size: 10px; }
+            .pad-note { font-size: 24px; }
+            .pad { box-shadow: 4px 4px 10px rgba(0,0,0,0.4); }
         }
 
-        /* Scale Highlighting */
-        .key.white.scale-active {
-            background: var(--accent-green);
-            color: #000;
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
-            border-color: #00cc00;
-        }
-        
-        .key.black.scale-active {
-            background: var(--accent-green-dark);
-            color: #fff;
-            box-shadow: 0 0 10px rgba(0, 143, 0, 0.6);
-            border-color: #005500;
-            z-index: 3;
+        .pad.active {
+            border: 2px solid var(--accent-red);
+            box-shadow: 0 0 10px rgba(255, 59, 59, 0.4), inset 0 0 8px rgba(255, 59, 59, 0.2);
         }
 
-        .key.playing {
-            background: var(--accent-red) !important;
-            color: white !important;
-            box-shadow: 0 0 20px var(--accent-red);
-            border-color: #990000 !important;
-            z-index: 10 !important;
+        .pad.playing {
+            background: #ff3b3b;
+            color: white;
+            transform: scale(0.96);
         }
 
-        /* Controls Area */
+        /* Controls Area Styles */
         .controls-area {
             flex-shrink: 0;
-            overflow-y: auto;
-            max-height: 40vh; /* Ensure controls don't eat entire screen on landscape mobile */
+            display: flex;
+            flex-direction: column;
+            gap: 6px; /* 見切れ対策 */
+            background: rgba(0,0,0,0.2);
+            padding: 6px; /* 見切れ対策 */
+            border-radius: 8px;
+            border: 1px solid #222;
         }
 
-        .controls-grid {
+        .controls-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-        
-        /* Mobile specific grid adjustment */
-        @media (max-width: 480px) {
-            .controls-grid {
-                grid-template-columns: 1fr; /* Stack on very small screens */
-                gap: 8px;
-                margin-bottom: 8px;
-            }
-            .controls-grid.side-by-side {
-                grid-template-columns: 1fr 1fr; /* Keep BPM/Vol side by side */
-            }
+            gap: 6px;
         }
 
         .ai-controls {
             display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
+            gap: 6px;
+            margin-bottom: 6px;
+            flex-shrink: 0;
         }
 
         .ai-btn {
             flex: 1;
             background: linear-gradient(135deg, #4f46e5, #9333ea);
             border: none;
-            padding: 10px;
+            padding: 6px;
             border-radius: 6px;
             font-size: 11px;
             font-weight: bold;
             color: white;
             cursor: pointer;
-            transition: opacity 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -274,19 +224,20 @@
             white-space: nowrap;
         }
 
-        .ai-btn:hover { opacity: 0.9; }
-        .ai-btn:disabled { background: #333; cursor: not-allowed; }
+        .ai-btn:active { opacity: 0.8; }
+        .ai-btn:disabled { background: #333; opacity: 0.5; }
 
+        /* Inputs & Selects */
         select, input[type="number"], input[type="text"] {
             background-color: #111;
             color: #fff;
             border: 1px solid #333;
-            padding: 12px;
+            padding: 6px;
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 14px; /* iOS zoom prevention */
             width: 100%;
             outline: none;
-            -webkit-appearance: none; /* Mobile Safari fix */
+            height: 32px; /* 少し低く */
         }
 
         .input-with-label {
@@ -295,79 +246,76 @@
             background: #111;
             border: 1px solid #333;
             border-radius: 4px;
-            padding: 0 12px;
-            height: 42px; /* Fixed height for alignment */
+            padding: 0 8px;
+            height: 32px; /* 少し低く */
         }
 
         .input-label {
             font-size: 10px;
             color: #666;
-            margin-right: 8px;
-            flex-shrink: 0;
+            margin-right: 6px;
+            white-space: nowrap;
         }
 
         input[type="range"] {
             accent-color: var(--accent-red);
             flex-grow: 1;
-            min-width: 0; /* Prevent flex overflow */
-        }
-        
-        input[type="number"] {
-             border: none;
-             padding: 0;
-             height: 100%;
-             text-align: right;
+            height: 20px;
         }
 
         .action-buttons {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            margin-top: 8px;
-            padding-bottom: 4px; /* 安全マージン（スクロールバー発生を完全防止） */
+            gap: 6px;
+            padding-bottom: 4px; /* ★スクロールバー発生防止マージン */
         }
 
         .btn {
             background-color: #333;
             color: #fff;
-            padding: 12px;
+            padding: 8px; /* 少し狭く */
             border-radius: 4px;
             text-align: center;
             font-weight: bold;
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
-            transition: transform 0.1s, background-color 0.2s; /* トランジションをスムーズに */
             border: 1px solid #444;
             display: flex;
             align-items: center;
             justify-content: center;
             user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            /* テキスト折り返しによる高さ増加を完全防止 */
+            touch-action: manipulation;
+            /* ★レイアウト崩れ防止策 */
+            transition: transform 0.1s, background-color 0.2s;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         .btn:hover { background-color: #444; }
-        /* 下への移動（translateY）を廃止し、縮小（scale）に変更してレイアウト崩れを防ぐ */
+        /* ★下への移動（translateY）を廃止し、縮小（scale）に変更 */
         .btn:active { background-color: #555; transform: scale(0.97); }
 
         #sound-toggle.active-green {
             background-color: var(--accent-green-bright) !important;
             color: #000000 !important;
             border-color: #ffffff !important;
-            box-shadow: 0 0 15px rgba(57, 255, 20, 0.7) !important;
-            font-weight: 800 !important;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.5) !important;
         }
 
         #rec-btn.active-rec {
             background-color: var(--accent-red) !important;
             color: #fff !important;
             border-color: #fff !important;
-            box-shadow: 0 0 15px rgba(255, 59, 59, 0.7) !important;
+            box-shadow: 0 0 10px rgba(255, 59, 59, 0.5) !important;
             animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
         }
         
         .btn-blue { background-color: #2563eb; border-color: #1d4ed8; }
@@ -377,7 +325,7 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 4px;
-            margin-top: 12px;
+            margin-top: 8px; /* 見切れ対策 */
             padding: 4px;
             background-color: #000;
             border-radius: 8px;
@@ -385,9 +333,9 @@
         }
 
         .tab {
-            padding: 12px;
+            padding: 8px; /* 少し狭く */
             text-align: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
             color: #666;
@@ -401,97 +349,67 @@
             color: #fff;
         }
 
+        /* Sequencer Styles */
         #sequencer-container {
             flex-grow: 1;
             background-color: #0a0a0a;
             border: 1px solid #222;
-            overflow: auto; /* Allow scrolling in both directions if needed */
+            overflow: auto;
             border-radius: 4px;
-            scrollbar-width: thin;
-            scrollbar-color: #333 #0a0a0a;
-            min-height: 0;
-        }
-        
-        #sequencer-container::-webkit-scrollbar {
-            width: 8px; height: 8px;
-        }
-        #sequencer-container::-webkit-scrollbar-track {
-            background: #0a0a0a;
-        }
-        #sequencer-container::-webkit-scrollbar-thumb {
-            background-color: #333;
-            border-radius: 4px;
+            position: relative;
+            -webkit-overflow-scrolling: touch; 
         }
 
         .seq-row {
             display: flex;
-            height: 24px;
-            border-bottom: 1px solid #111;
-            min-width: 100%; /* Ensure row takes full width */
-            width: max-content; /* Allow row to expand horizontally */
+            height: 36px;
+            border-bottom: 1px solid #1a1a1a;
+            width: max-content;
+            min-width: 100%;
         }
 
         .seq-key {
-            width: 50px;
+            width: 60px;
             background-color: #111;
             display: flex;
-            justify-content: flex-end;
-            padding-right: 4px;
+            justify-content: center;
             align-items: center;
-            font-size: 9px;
+            font-size: 11px;
             font-weight: bold;
-            color: #999;
+            color: var(--accent-green);
             border-right: 2px solid #222;
             flex-shrink: 0;
-            position: sticky; /* Sticky keys on scroll */
+            position: sticky;
             left: 0;
-            z-index: 20;
+            z-index: 10;
         }
         
-        .seq-key.black-key-row {
-            background-color: #080808;
-            color: #666;
-        }
-
         .seq-key.out-of-scale {
-            color: #333;
-            background-color: #050505;
+            color: #444; 
+            background-color: #151515;
         }
 
-        .seq-key.root { color: var(--accent-green); }
+        .seq-key.root { background-color: #1a2a1a; }
 
         .seq-grid {
             display: flex;
-            flex-grow: 1;
         }
 
         .seq-cell {
-            width: 24px; /* Fixed width for cells to ensure touchability */
-            min-width: 24px;
+            width: 36px;
             border-right: 1px solid #1a1a1a;
             cursor: pointer;
             position: relative;
-        }
-
-        /* Make cells wider on desktop */
-        @media (min-width: 768px) {
-            .seq-cell {
-                width: auto;
-                flex: 1;
-            }
-            .seq-row {
-                width: 100%;
-            }
+            flex-shrink: 0;
         }
 
         .seq-cell.active { 
             background-color: var(--accent-green) !important; 
             box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.4), 0 0 3px rgba(0, 255, 0, 0.6);
-            z-index: 10;
         }
         
         .seq-cell.current { 
-            background-color: rgba(255, 255, 255, 0.1) !important; 
+            background-color: rgba(255, 255, 255, 0.15) !important; 
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
         }
         
@@ -500,11 +418,12 @@
             box-shadow: 0 0 10px white, inset 0 0 0 2px white;
         }
         
-        .seq-cell.measure-alt { background-color: #202020; }
-        .seq-cell:not(.measure-alt) { background-color: #161616; }
+        .seq-cell.measure-alt { background-color: #252525; }
+        .seq-cell:not(.measure-alt) { background-color: #1a1a1a; }
 
         .hidden { display: none !important; }
 
+        /* Modal */
         #ai-modal {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -516,12 +435,14 @@
             padding: 20px;
         }
 
-        /* Settings Panel */
-        .settings-panel {
-            background-color: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 16px;
-            border: 1px solid #333;
+        @media (min-width: 768px) {
+            .controls-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .action-buttons { gap: 12px; }
+            .btn { padding: 14px; font-size: 12px; }
+            .seq-key { width: 80px; font-size: 12px; }
+            .seq-row { height: 40px; }
+            .seq-cell { flex: 1; width: auto; }
+            .seq-grid { flex-grow: 1; width: 100%; }
         }
     </style>
 </head>
@@ -531,8 +452,8 @@
         <!-- Header -->
         <div class="header">
             <div class="status-area">
-                <div class="flex items-center flex-wrap gap-2 mb-1">
-                    <span class="label-small hidden sm:inline">NAVIGATOR</span>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="label-small hidden md:inline">NAVIGATOR</span>
                     <button id="sound-toggle" class="btn text-[10px] font-bold px-3 py-1 flex items-center gap-1 transition-all duration-300">
                         <span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF
                     </button>
@@ -540,70 +461,67 @@
                         <span class="w-2 h-2 rounded-full bg-red-600"></span> REC
                     </button>
                 </div>
-                <div id="status-label" class="status-text uppercase tracking-widest mt-1">STOPPED</div>
+                <div id="status-label" class="status-text uppercase tracking-widest text-xs md:text-sm">STOPPED</div>
             </div>
             <div class="bpm-display">
-                <div id="bpm-val" class="bpm-value">120 BPM</div>
-                <div class="label-small text-right">SEQUENCER</div>
+                <div id="bpm-val" class="bpm-value">120</div>
+                <div class="label-small">BPM</div>
             </div>
         </div>
 
-        <!-- Main Content Area: Keyboard -->
-        <div id="view-keyboard" class="view-panel">
-            <div id="keyboard-container" class="keyboard-container">
-                <!-- Keys will be generated by JS -->
-            </div>
+        <!-- Main Content Area -->
+        <div id="view-pads" class="view-panel">
+            <div id="pad-grid" class="pad-grid"></div>
         </div>
 
         <div id="view-sequencer" class="view-panel hidden">
             <!-- View Mode Toggle & Clear -->
             <div class="flex justify-between items-center mb-2 flex-shrink-0">
-                <div class="label-small text-gray-500 hidden sm:block">PIANO ROLL</div>
-                <div class="flex gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                    <div class="flex bg-black/40 rounded p-1 gap-1 border border-[#333]">
-                        <button id="seq-mode-scale" class="text-[9px] px-3 py-1 rounded bg-[#333] text-white font-bold transition-colors">SCALE</button>
-                        <button id="seq-mode-chromatic" class="text-[9px] px-3 py-1 rounded text-[#666] font-bold hover:text-[#999] transition-colors">ALL</button>
-                    </div>
-                    
-                    <button id="clear-seq-btn" class="group flex items-center gap-1 text-[9px] px-2 py-1 rounded border border-[#333] hover:border-red-500 transition-all min-w-[60px] justify-center">
-                        <span id="clear-btn-text" class="text-gray-500 group-hover:text-red-400 font-bold uppercase">🗑️ CLR</span>
+                <div class="label-small text-gray-500">SEQ EDITOR</div>
+                <div class="flex gap-2">
+                    <button id="clear-seq-btn" class="group flex items-center gap-1 text-[9px] px-2 py-1 rounded border border-[#333] hover:border-red-500 transition-all min-w-[60px] justify-center bg-[#222]">
+                        <span id="clear-btn-text" class="text-gray-400 group-hover:text-red-400 font-bold uppercase">🗑️ CLEAR</span>
                     </button>
+
+                    <div class="flex bg-black/40 rounded p-1 gap-1 border border-[#333]">
+                        <button id="seq-mode-scale" class="text-[9px] px-2 py-1 rounded bg-[#333] text-white font-bold transition-colors">SCALE</button>
+                        <button id="seq-mode-chromatic" class="text-[9px] px-2 py-1 rounded text-[#666] font-bold hover:text-[#999] transition-colors">ALL</button>
+                    </div>
                 </div>
             </div>
             
             <div id="sequencer-container"></div>
             
             <div class="mt-2 flex justify-between items-center flex-shrink-0">
-                <div class="label-small text-[9px] text-gray-500 truncate">PROGモード + RECで進行書き込み</div>
+                <div class="label-small text-[9px] text-gray-500">PROGモード再生中にRECで書き込み</div>
             </div>
         </div>
 
         <div id="view-settings" class="view-panel hidden">
-            <div class="settings-panel">
-                <h3 class="label-small mb-4 text-white">Device Config</h3>
-                <div class="mb-4">
-                    <label class="label-small block mb-2">Language / 言語設定</label>
+            <div class="bg-black/40 p-6 rounded-lg">
+                <h3 class="label-small mb-4">Device Config</h3>
+                <div class="control-item">
+                    <label class="label-small">Language / 言語設定</label>
                     <select id="lang-select">
-                        <option value="ja">日本語 (Japanese)</option>
+                        <option value="ja" selected>日本語 (Japanese)</option>
                         <option value="en">English</option>
                     </select>
                 </div>
-                <div class="text-[10px] text-gray-500 leading-relaxed">
-                    <p>Version: 1.1.0 (Mobile Optimized)</p>
-                    <p>Tap "Save to Home Screen" to use as an app.</p>
+                <div class="mt-4 text-xs text-gray-500">
+                    <p>Version: 1.1 Mobile Optimized</p>
                 </div>
             </div>
         </div>
 
+        <!-- AI Integration Area -->
+        <div class="ai-controls">
+            <button id="ai-scale-btn" class="ai-btn">✨ AI スケール</button>
+            <button id="ai-prog-btn" class="ai-btn">✨ AI コード進行</button>
+        </div>
+
         <!-- Lower Controls -->
         <div class="controls-area">
-            <!-- AI Integration Area -->
-            <div class="ai-controls">
-                <button id="ai-scale-btn" class="ai-btn">✨ AIスケール</button>
-                <button id="ai-prog-btn" class="ai-btn">✨ AIコード進行</button>
-            </div>
-
-            <div class="controls-grid">
+            <div class="controls-row">
                 <select id="root-note">
                     <option value="C">Root: C</option>
                     <option value="C#">Root: C# / Db</option>
@@ -624,7 +542,7 @@
                 </select>
             </div>
 
-            <div class="controls-grid side-by-side">
+            <div class="controls-row">
                 <div class="input-with-label">
                     <span class="input-label">BPM</span>
                     <input type="number" id="bpm-input" value="120" min="40" max="240">
@@ -635,12 +553,12 @@
                 </div>
             </div>
 
-            <div class="controls-grid">
+            <div class="controls-row">
                 <select id="mode-selector">
                     <option value="scale">Mode: スケール</option>
                     <option value="progression">Mode: コード進行</option>
                 </select>
-                <select id="sub-selector"></select>
+                <select id="sub-selector" class="text-ellipsis overflow-hidden"></select>
             </div>
 
             <div class="action-buttons">
@@ -652,27 +570,28 @@
 
         <!-- Navigation Tabs -->
         <div class="nav-tabs" id="nav-tabs">
-            <div class="tab active" data-view="keyboard">KEYBOARD</div>
-            <div class="tab" data-view="sequencer">PIANO ROLL</div>
-            <div class="tab" data-view="settings">SETTINGS</div>
+            <div class="tab active" data-view="pads">PADS</div>
+            <div class="tab" data-view="sequencer">SEQ</div>
+            <div class="tab" data-view="settings">SETUP</div>
         </div>
     </div>
 
     <!-- AI Prompt Modal -->
     <div id="ai-modal" class="hidden">
-        <div class="bg-[#1a1a1a] p-6 rounded-xl border border-[#333] w-96 max-w-full shadow-2xl">
+        <div class="bg-[#1a1a1a] p-6 rounded-xl border border-[#333] w-full max-w-sm shadow-2xl">
             <h2 id="ai-modal-title" class="text-lg font-bold mb-4 text-purple-400">✨ AI生成</h2>
-            <input type="text" id="ai-input" placeholder="例: 切ない、チル、Lo-fi..." class="mb-4 text-base p-3">
+            <input type="text" id="ai-input" placeholder="例: 切ない、チル、Lo-fi..." class="mb-4 w-full">
             <div class="flex gap-2">
-                <button id="ai-submit" class="ai-btn flex-grow py-3">生成</button>
-                <button id="ai-close" class="btn flex-grow py-3">閉じる</button>
+                <button id="ai-submit" class="ai-btn flex-grow">生成開始</button>
+                <button id="ai-close" class="btn flex-grow">閉じる</button>
             </div>
+            <!-- ★エラーが赤文字でハッキリ出るように変更 -->
             <p id="ai-status" class="text-[10px] text-red-400 mt-4 font-bold text-center min-h-[15px]"></p>
         </div>
     </div>
 
     <script>
-        const keyboardContainer = document.getElementById('keyboard-container');
+        const padGrid = document.getElementById('pad-grid');
         const rootSelect = document.getElementById('root-note');
         const keyTypeSelect = document.getElementById('key-type');
         const modeSelect = document.getElementById('mode-selector');
@@ -702,25 +621,22 @@
         // Sequencer view mode controls
         const btnSeqScale = document.getElementById('seq-mode-scale');
         const btnSeqChrom = document.getElementById('seq-mode-chromatic');
-        let sequencerViewMode = 'scale'; 
+        let sequencerViewMode = 'scale'; // 'scale' or 'chromatic'
 
         let currentLang = 'ja';
 
-        // 25 Keys: C3 to C5
         const chromaticNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const keyNotes = [];
-        const startOctave = 3;
-        const totalKeys = 25; // C3 to C5
-
-        for (let i = 0; i < totalKeys; i++) {
-            const noteIndex = i % 12;
-            const octave = startOctave + Math.floor(i / 12);
-            keyNotes.push({ 
+        const padNotes = [];
+        
+        for (let i = 0; i < 16; i++) {
+            const totalSemitones = i;
+            const noteIndex = totalSemitones % 12;
+            const octave = 3 + Math.floor(totalSemitones / 12);
+            padNotes.push({ 
                 name: chromaticNotes[noteIndex], 
                 fullName: chromaticNotes[noteIndex] + octave, 
                 octave,
-                midi: 12 * (octave + 1) + noteIndex,
-                isBlack: chromaticNotes[noteIndex].includes('#')
+                midi: 12 * (octave + 1) + noteIndex
             });
         }
 
@@ -805,8 +721,7 @@
 
         // ★★★ エラー詳細を画面に出すように強化されたAI呼び出し関数 ★★★
         async function callGemini(prompt, systemPrompt, schema) {
-            const url = `/api/ai`; // 呼び出し先ファイル名は「api/ai.js」
-            
+            const url = `/api/gemini`; // 16 Pad Scale Finder は api/gemini
             const payload = {
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
                 systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -831,7 +746,7 @@
                     if (!response.ok) {
                         let errMsg = `HTTP ${response.status} エラー`;
                         if (response.status === 404 && !data) {
-                            errMsg = `エラー404: /api/ai.js ファイルが見つかりません。GitHubのファイル名を確認してください。`;
+                            errMsg = `エラー404: /api/gemini.js ファイルが見つかりません。GitHubのファイル名を確認してください。`;
                         } else if (data && data.error && data.error.message) {
                             errMsg = `Google API エラー: ${data.error.message}`;
                         } else if (data && data.error) {
@@ -889,59 +804,30 @@
             const currentScale = scales[type] || scales.major;
             const scaleNotes = currentScale.intervals.map(i => chromaticNotes[(chromaticNotes.indexOf(root) + i) % 12]);
 
-            keyboardContainer.innerHTML = '';
-            
-            // Calculate layout for 25 keys (C3 to C5)
-            // White keys total: 15 (C3, D3, E3, F3, G3, A3, B3, C4, D4, E4, F4, G4, A4, B4, C5)
-            const whiteKeyCount = 15;
-            const whiteKeyWidthPercent = 100 / whiteKeyCount;
-            let whiteKeyIndex = 0;
+            padGrid.innerHTML = '';
+            const layoutOrder = [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3];
 
-            keyNotes.forEach((note, i) => {
+            layoutOrder.forEach((i, visualIdx) => {
+                const note = padNotes[i];
+                const pad = document.createElement('div');
                 const isScale = scaleNotes.includes(note.name);
                 const isPlayingNote = activeHits.includes(i);
                 
-                const keyDiv = document.createElement('div');
-                keyDiv.className = `key ${note.isBlack ? 'black' : 'white'} ${isScale ? 'scale-active' : ''} ${isPlayingNote ? 'playing' : ''}`;
+                pad.className = `pad ${isScale ? 'active' : ''} ${isPlayingNote ? 'playing' : ''}`;
+                pad.innerHTML = `
+                    <div class="pad-id">PAD ${String(visualIdx + 1).padStart(2, '0')}</div>
+                    <div class="pad-note">${note.fullName}</div>
+                `;
                 
-                // Positioning
-                if (note.isBlack) {
-                    // Position black key between white keys
-                    const width = whiteKeyWidthPercent * 0.7; 
-                    keyDiv.style.width = `${width}%`;
-                    keyDiv.style.left = `${(whiteKeyIndex * whiteKeyWidthPercent) - (width / 2)}%`;
-                } else {
-                    keyDiv.style.width = `${whiteKeyWidthPercent}%`;
-                    keyDiv.style.left = `${whiteKeyIndex * whiteKeyWidthPercent}%`;
-                    whiteKeyIndex++;
-                }
-
-                // Inner content - Show text only on wider screens or for root notes
-                if ((!note.isBlack || window.innerWidth > 600) && window.innerWidth > 350) {
-                    // Shorten sharp/flat names on small screens
-                    const displayName = note.name.replace('#', '♯');
-                    if (window.innerWidth < 480) {
-                        keyDiv.innerHTML = `<span style="font-size: 8px;">${displayName}</span>`;
-                    } else {
-                        keyDiv.innerText = displayName;
-                    }
-                }
-                
-                const triggerKey = () => {
+                const triggerPad = () => {
                     initAudio();
                     playSound(getFreq(note.name, note.octave));
-                    keyDiv.classList.add('playing');
-                    setTimeout(() => keyDiv.classList.remove('playing'), 100);
+                    pad.classList.add('playing');
+                    setTimeout(() => pad.classList.remove('playing'), 100);
                 };
-                
-                keyDiv.onmousedown = triggerKey;
-                keyDiv.ontouchstart = (e) => { 
-                    e.preventDefault(); 
-                    e.stopPropagation();
-                    triggerKey(); 
-                };
-                
-                keyboardContainer.appendChild(keyDiv);
+                pad.onmousedown = triggerPad;
+                pad.ontouchstart = (e) => { e.preventDefault(); triggerPad(); };
+                padGrid.appendChild(pad);
             });
         }
 
@@ -951,17 +837,18 @@
             const currentScale = scales[keyTypeSelect.value] || scales.major;
             const scaleNotes = currentScale.intervals.map(i => chromaticNotes[(chromaticNotes.indexOf(root) + i) % 12]);
 
-            // Piano roll: High notes at top, Low notes at bottom
-            [...keyNotes].reverse().forEach((note, revIdx) => {
-                const realIdx = (totalKeys - 1) - revIdx;
+            [...padNotes].reverse().forEach((note, revIdx) => {
+                const realIdx = 15 - revIdx;
                 const isInScale = scaleNotes.includes(note.name);
+                
                 if (sequencerViewMode === 'scale' && !isInScale) return;
 
                 const row = document.createElement('div');
                 row.className = 'seq-row';
+                
                 const key = document.createElement('div');
-                key.className = `seq-key ${note.isBlack ? 'black-key-row' : ''} ${note.name === root ? 'root' : ''} ${!isInScale ? 'out-of-scale' : ''}`;
-                key.textContent = note.fullName.replace('#', '♯');
+                key.className = `seq-key ${note.name === root ? 'root' : ''} ${!isInScale ? 'out-of-scale' : ''}`;
+                key.textContent = note.fullName;
                 row.appendChild(key);
 
                 const grid = document.createElement('div');
@@ -987,15 +874,28 @@
         function updateSeqModeUI() {
             if (sequencerViewMode === 'scale') {
                 btnSeqScale.classList.add('bg-[#333]', 'text-white');
+                btnSeqScale.classList.remove('text-[#666]');
                 btnSeqChrom.classList.remove('bg-[#333]', 'text-white');
+                btnSeqChrom.classList.add('text-[#666]');
             } else {
                 btnSeqChrom.classList.add('bg-[#333]', 'text-white');
+                btnSeqChrom.classList.remove('text-[#666]');
                 btnSeqScale.classList.remove('bg-[#333]', 'text-white');
+                btnSeqScale.classList.add('text-[#666]');
             }
         }
         
-        btnSeqScale.onclick = () => { sequencerViewMode = 'scale'; updateSeqModeUI(); renderSequencer(); };
-        btnSeqChrom.onclick = () => { sequencerViewMode = 'chromatic'; updateSeqModeUI(); renderSequencer(); };
+        btnSeqScale.onclick = () => {
+            sequencerViewMode = 'scale';
+            updateSeqModeUI();
+            renderSequencer();
+        };
+        
+        btnSeqChrom.onclick = () => {
+            sequencerViewMode = 'chromatic';
+            updateSeqModeUI();
+            renderSequencer();
+        };
 
         function runCycle() {
             if (!isPlaying) return;
@@ -1004,8 +904,11 @@
             
             const cells = seqContainer.querySelectorAll('.seq-cell');
             cells.forEach(cell => {
-                if (parseInt(cell.dataset.stepIndex) === (currentStep % 16)) cell.classList.add('current');
-                else cell.classList.remove('current');
+                if (parseInt(cell.dataset.stepIndex) === (currentStep % 16)) {
+                    cell.classList.add('current');
+                } else {
+                    cell.classList.remove('current');
+                }
             });
 
             if (modeSelect.value === 'scale') {
@@ -1013,7 +916,7 @@
                 const hits = [];
                 Object.keys(sequencerData).forEach(idx => {
                     if (sequencerData[idx][stepIdx]) {
-                        playSound(getFreq(keyNotes[idx].name, keyNotes[idx].octave));
+                        playSound(getFreq(padNotes[idx].name, padNotes[idx].octave));
                         hits.push(parseInt(idx));
                     }
                 });
@@ -1027,6 +930,7 @@
                 if (prog) {
                     const loopSteps = prog.degrees.length * 4;
                     const stepIdx = currentStep % loopSteps;
+
                     if (stepIdx % 4 === 0) {
                         const measureIdx = Math.floor(stepIdx / 4);
                         const progIdx = measureIdx % prog.degrees.length;
@@ -1034,25 +938,24 @@
                         const chordNames = prog.degrees[progIdx].map(i => chromaticNotes[(rootIdx + i) % 12]);
                         
                         const hits = [];
+                        let rootPadIndex = padNotes.findIndex(p => p.name === chordNames[0]);
                         
-                        // 初心者向け：ルートポジションに近い形でボイシング
-                        let currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0] && k.octave === 3);
-                        if (currentRootIndex === -1) currentRootIndex = keyNotes.findIndex(k => k.name === chordNames[0]); // fallback
-
                         chordNames.forEach((noteName, idx) => {
                             if (idx === 0) {
-                                hits.push(currentRootIndex);
+                                if (rootPadIndex !== -1) hits.push(rootPadIndex);
                                 return;
                             }
+                            
                             let foundIndex = -1;
-                            for (let i = currentRootIndex + 1; i < keyNotes.length; i++) {
-                                if (keyNotes[i].name === noteName) {
+                            for (let i = rootPadIndex + 1; i < padNotes.length; i++) {
+                                if (padNotes[i].name === noteName) {
                                     foundIndex = i;
                                     break;
                                 }
                             }
+                            
                             if (foundIndex === -1) {
-                                foundIndex = keyNotes.findIndex(k => k.name === noteName);
+                                foundIndex = padNotes.findIndex(p => p.name === noteName);
                             }
                             
                             if (foundIndex !== -1 && !hits.includes(foundIndex)) {
@@ -1060,24 +963,24 @@
                             }
                         });
 
-                        hits.forEach(idx => {
-                            playSound(getFreq(keyNotes[idx].name, keyNotes[idx].octave));
-                        });
+                        hits.forEach(idx => playSound(getFreq(padNotes[idx].name, padNotes[idx].octave)));
                         
                         statusLabel.textContent = `CHORD: ${prog.labels[progIdx]}`;
                         updateUI(hits);
-                        
+
                         if (isRecording) {
                             const startStep = stepIdx % 16;
-                            hits.forEach(keyIdx => {
-                                if (!sequencerData[keyIdx]) sequencerData[keyIdx] = new Array(16).fill(false);
-                                sequencerData[keyIdx][startStep] = true;
+                            hits.forEach(padIdx => {
+                                if (!sequencerData[padIdx]) sequencerData[padIdx] = new Array(16).fill(false);
+                                sequencerData[padIdx][startStep] = true;
                             });
                             if (!document.getElementById('view-sequencer').classList.contains('hidden')) renderSequencer();
                         }
                     }
                     currentStep++;
-                } else currentStep = (currentStep + 1) % 16;
+                } else {
+                    currentStep = (currentStep + 1) % 16;
+                }
             }
             timer = setTimeout(runCycle, stepMs);
         }
@@ -1085,39 +988,48 @@
         function exportMIDI() {
             const ticksPerBeat = 128;
             const bpm = parseInt(bpmInput.value);
+            
             let trackEvents = [
                 { delta: 0, bytes: MidiEncoder.createTempo(bpm) },
                 { delta: 0, bytes: [0xFF, 0x03, 0x09, ...MidiEncoder.strToBytes('Sequencer')] }
             ];
+
             let absoluteEvents = [];
             for (let s = 0; s < 16; s++) {
                 const startTime = s * ticksPerBeat;
                 const endTime = startTime + Math.floor(ticksPerBeat * 0.8);
+
                 Object.keys(sequencerData).forEach(idx => {
                     if (sequencerData[idx][s]) {
-                        const note = keyNotes[idx].midi;
+                        const note = padNotes[idx].midi;
                         absoluteEvents.push({ time: startTime, bytes: MidiEncoder.createNoteOn(0, note, 90) });
                         absoluteEvents.push({ time: endTime, bytes: MidiEncoder.createNoteOff(0, note, 0) });
                     }
                 });
             }
+
             absoluteEvents.sort((a, b) => a.time - b.time);
+
             let lastTime = 0;
             absoluteEvents.forEach(e => {
                 trackEvents.push({ delta: e.time - lastTime, bytes: e.bytes });
                 lastTime = e.time;
             });
+
             const midiData = MidiEncoder.getMidiFile([trackEvents], ticksPerBeat);
             const blob = new Blob([midiData], { type: 'audio/midi' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'keyboard_scale_finder.mid'; a.click();
+            a.href = url;
+            a.download = 'pad_finder.mid';
+            a.click();
             URL.revokeObjectURL(url);
         }
 
         async function handleAI() {
             const prompt = aiInput.value;
             aiStatus.textContent = "考え中...";
+            aiStatus.style.color = "inherit"; // 初期化時はデフォルト色
             aiSubmit.disabled = true;
             try {
                 if (aiMode === 'scale') {
@@ -1145,7 +1057,9 @@
                 }
                 aiModal.classList.add('hidden');
             } catch (e) { 
-                console.error(e); aiStatus.textContent = e.message; 
+                console.error(e);
+                aiStatus.textContent = e.message; 
+                aiStatus.style.color = "#f87171"; // エラー時は赤文字
             } finally { aiSubmit.disabled = false; updateUI(); }
         }
 
@@ -1156,36 +1070,52 @@
 
         playBtn.onclick = () => {
             initAudio();
-            if (isPlaying) { isPlaying = false; playBtn.textContent = 'RESUME'; statusLabel.textContent = 'PAUSED'; clearTimeout(timer); } 
-            else { isPlaying = true; playBtn.textContent = 'PAUSE'; statusLabel.textContent = 'RUNNING'; runCycle(); }
+            if (isPlaying) {
+                isPlaying = false; playBtn.textContent = 'RESUME'; statusLabel.textContent = 'PAUSED'; clearTimeout(timer);
+            } else {
+                isPlaying = true; playBtn.textContent = 'PAUSE'; statusLabel.textContent = 'RUNNING'; runCycle();
+            }
         };
 
         stopBtn.onclick = () => {
-            isPlaying = false; currentStep = 0; playBtn.textContent = 'PLAY'; statusLabel.textContent = 'STOPPED'; clearTimeout(timer);
+            isPlaying = false; 
+            currentStep = 0; 
+            playBtn.textContent = 'PLAY'; 
+            statusLabel.textContent = 'STOPPED'; 
+            clearTimeout(timer);
             const cells = seqContainer.querySelectorAll('.seq-cell');
             cells.forEach(cell => cell.classList.remove('current'));
             updateUI();
         };
 
         soundToggle.onclick = () => {
-            initAudio(); isSoundOn = !isSoundOn;
-            if (isSoundOn) { soundToggle.classList.add('active-green'); soundToggle.innerHTML = `<span id="sound-icon">🔊</span> <span class="hidden xs:inline">SOUND</span> ON`; } 
-            else { soundToggle.classList.remove('active-green'); soundToggle.innerHTML = `<span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF`; }
+            initAudio(); 
+            isSoundOn = !isSoundOn;
+            if (isSoundOn) {
+                soundToggle.classList.add('active-green');
+                soundToggle.innerHTML = `<span id="sound-icon">🔊</span> <span class="hidden xs:inline">SOUND</span> ON`;
+            } else {
+                soundToggle.classList.remove('active-green');
+                soundToggle.innerHTML = `<span id="sound-icon">🔈</span> <span class="hidden xs:inline">SOUND</span> OFF`;
+            }
         };
 
         recBtn.onclick = () => {
             isRecording = !isRecording;
-            if (isRecording) recBtn.classList.add('active-rec');
-            else recBtn.classList.remove('active-rec');
+            if (isRecording) {
+                recBtn.classList.add('active-rec');
+            } else {
+                recBtn.classList.remove('active-rec');
+            }
         };
 
         exportBtn.onclick = exportMIDI;
         volumeFader.oninput = () => { if(masterGain) masterGain.gain.value = volumeFader.value; };
-        bpmInput.oninput = () => bpmDisplay.textContent = `${bpmInput.value} BPM`;
+        bpmInput.oninput = () => bpmDisplay.textContent = `${bpmInput.value}`;
         modeSelect.onchange = updateSubOptions;
         keyTypeSelect.onchange = updateSubOptions;
         rootSelect.onchange = () => { currentStep = 0; updateUI(); renderSequencer(); };
-
+        
         // 言語切り替え時にUIを更新する関数
         function updateUILanguage() {
             if (currentLang === 'ja') {
@@ -1214,13 +1144,13 @@
             if (mode === 'scale') {
                 const opt = document.createElement('option');
                 const s = scales[key] || scales.major;
-                opt.textContent = s.name[currentLang] || s.name;
+                opt.textContent = (s.name && s.name[currentLang]) ? s.name[currentLang] : (s.name || 'Scale');
                 subSelect.appendChild(opt);
             } else {
                 const progs = progressions[key] || progressions.major;
                 Object.keys(progs).forEach(k => {
                     const opt = document.createElement('option'); opt.value = k;
-                    opt.textContent = progs[k].name[currentLang] || progs[k].name;
+                    opt.textContent = (progs[k].name && progs[k].name[currentLang]) ? progs[k].name[currentLang] : (progs[k].name || k);
                     subSelect.appendChild(opt);
                 });
             }
@@ -1238,7 +1168,6 @@
             };
         });
 
-        // Clear logic
         let clearConfirmState = false;
         let clearTimer = null;
         const clearBtn = document.getElementById('clear-seq-btn');
@@ -1249,7 +1178,7 @@
             
             if (!hasData) {
                 clearBtnText.innerText = "❌ NO DATA";
-                setTimeout(() => { clearBtnText.innerText = "🗑️ CLR"; }, 1500);
+                setTimeout(() => { clearBtnText.innerText = "🗑️ CLEAR"; }, 1500);
                 return;
             }
 
@@ -1261,7 +1190,7 @@
                 if (clearTimer) clearTimeout(clearTimer);
                 clearTimer = setTimeout(() => {
                     clearConfirmState = false;
-                    clearBtnText.innerText = "🗑️ CLR";
+                    clearBtnText.innerText = "🗑️ CLEAR";
                     clearBtnText.classList.remove('text-red-400');
                 }, 3000);
             } else {
@@ -1270,22 +1199,21 @@
                 
                 clearConfirmState = false;
                 if (clearTimer) clearTimeout(clearTimer);
-                clearBtnText.innerText = "✨ DONE";
+                clearBtnText.innerText = "✨ CLEARED";
                 clearBtnText.classList.remove('text-red-400');
                 clearBtnText.classList.add('text-green-400');
                 
                 setTimeout(() => {
-                    clearBtnText.innerText = "🗑️ CLR";
+                    clearBtnText.innerText = "🗑️ CLEAR";
                     clearBtnText.classList.remove('text-green-400');
                 }, 1500);
             }
         };
         
-        // Resize listener for responsive UI updates
         window.addEventListener('resize', () => {
             updateUI();
         });
-        
+
         // 初期化時にUI言語とオプションを更新
         updateUILanguage();
         updateSubOptions();
